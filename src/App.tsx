@@ -4,6 +4,7 @@ import { getAuth } from 'firebase/auth'
 import Home from './pages/Home'
 import RaceRoom from './pages/RaceRoom'
 import SignIn from './pages/SignIn'
+import Header from './components/Header'
 
 function App() {
   const [user, loading] = useAuthState(getAuth())
@@ -15,11 +16,14 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-[#323437] text-[#d1d0c5]">
-        <Routes>
-          <Route path="/signin" element={user ? <Navigate to="/" /> : <SignIn />} />
-          <Route path="/" element={user ? <Home /> : <Navigate to="/signin" />} />
-          <Route path="/race/:roomId" element={user ? <RaceRoom /> : <Navigate to="/signin" />} />
-        </Routes>
+        {user && <Header />}
+        <div className={user ? 'pt-14' : ''}>
+          <Routes>
+            <Route path="/signin" element={user ? <Navigate to="/" /> : <SignIn />} />
+            <Route path="/" element={user ? <Home /> : <Navigate to="/signin" />} />
+            <Route path="/race/:roomId" element={user ? <RaceRoom /> : <Navigate to="/signin" />} />
+          </Routes>
+        </div>
       </div>
     </Router>
   )
