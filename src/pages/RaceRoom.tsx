@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 
 const SAMPLE_TEXT = "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!"
+
+const cursorStyle = "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse transition-transform duration-75"
 
 const RaceRoom = () => {
   const { roomId } = useParams()
@@ -11,6 +13,8 @@ const RaceRoom = () => {
   const [wpm, setWpm] = useState(0)
   const [accuracy, setAccuracy] = useState(100)
   const [isFinished, setIsFinished] = useState(false)
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 })
+  const textContainerRef = useRef<HTMLDivElement>(null)
 
   // Add keydown event listener
   useEffect(() => {
@@ -27,9 +31,6 @@ const RaceRoom = () => {
           setStartTime(Date.now())
         }
 
-        // Don't add more characters if we've reached the text length
-        if (userInput.length >= text.length) return
-
         const newInput = userInput + e.key
         setUserInput(newInput)
 
@@ -45,8 +46,8 @@ const RaceRoom = () => {
         const wordsTyped = newInput.length / 5
         setWpm(Math.round(wordsTyped / timeElapsed) || 0)
 
-        // Check if finished by length instead of exact match
-        if (newInput.length === text.length) {
+        // Check if finished
+        if (newInput === text) {
           setIsFinished(true)
         }
       } else if (e.key === 'Backspace') {
@@ -59,6 +60,21 @@ const RaceRoom = () => {
     return () => window.removeEventListener('keydown', handleKeyPress)
   }, [text, userInput, startTime, isFinished])
 
+  // Update cursor position when input changes
+  useEffect(() => {
+    if (textContainerRef.current) {
+      const chars = Array.from(textContainerRef.current.querySelectorAll('span > span'))
+      const currentChar = chars[userInput.length] || chars[0]
+      if (currentChar) {
+        const rect = currentChar.getBoundingClientRect()
+        const containerRect = textContainerRef.current.getBoundingClientRect()
+        const x = rect.left - containerRect.left
+        const y = rect.top - containerRect.top
+        setCursorPosition({ x, y })
+      }
+    }
+  }, [userInput])
+
   return (
     <div className="flex flex-col items-center min-h-screen p-4">
       <div className="fixed top-4 left-4 right-4">
@@ -68,8 +84,20 @@ const RaceRoom = () => {
         </div>
       </div>
 
-      <div className="w-full max-w-[90%] mt-[30vh]">
-        <div className="text-5xl leading-relaxed font-mono relative flex flex-wrap justify-center">
+      <div className="w-full max-w-[80%] mt-[30vh]">
+        <div 
+          ref={textContainerRef}
+          className="text-4xl leading-relaxed font-mono relative flex flex-wrap"
+        >
+          {!isFinished && (
+            <span 
+              className="absolute w-0.5 h-[1.1em] bg-[#d1d0c5] top-[0.1em] animate-pulse transition-all duration-75 left-0"
+              style={{ 
+                transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px)`,
+              }}
+            />
+          )}
+          
           {text.split(' ').map((word, wordIndex, wordArray) => {
             const previousWordsLength = wordArray
               .slice(0, wordIndex)
@@ -89,9 +117,6 @@ const RaceRoom = () => {
                       key={charIndex}
                       className={`${color} ${index === userInput.length ? 'relative' : ''}`}
                     >
-                      {index === userInput.length && (
-                        <span className="absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse" />
-                      )}
                       {char}
                     </span>
                   )
@@ -102,9 +127,6 @@ const RaceRoom = () => {
                       ? 'text-[#d1d0c5]' 
                       : 'text-[#646669]'
                   } relative`}>
-                    {previousWordsLength + word.length === userInput.length && (
-                      <span className="absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse" />
-                    )}
                     &nbsp;
                   </span>
                 )}
