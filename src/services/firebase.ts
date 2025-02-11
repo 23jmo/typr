@@ -73,18 +73,16 @@ export const authService = {
 
 export const userService = {
   // Create new user document
-  createUser: async (userId: string, userData: any): Promise<void> => {
+  createUser: async (userId: string, authData: any): Promise<void> => {
     try {
-      const userDoc = {
+      const userDoc: UserData = {
         uid: userId,
-        email: userData.email,
-        displayName: userData.displayName,
-        photoURL: userData.photoURL || null,
+        email: authData.email,
+        displayName: authData.displayName || null,
+        photoURL: authData.photoURL || null,
         username: null,
         createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-        ranked_elo: 1000,
-        internal_mmr: 1000,
+        updatedAt: new Date().toISOString(),
         stats: {
           overall: {
             gamesPlayed: 0,
@@ -115,9 +113,9 @@ export const userService = {
             totalCharactersTyped: 0,
             totalMistakes: 0,
             totalTimePlayed: 0,
-          },
-          games: []
-        }
+          }
+        },
+        games: []
       }
       await setDoc(doc(db, 'users', userId), userDoc)
     } catch (error: any) {
@@ -134,21 +132,25 @@ export const userService = {
   },
 
   // Update user stats after game
-  updateUserStats: async (userId: string, wpm: number): Promise<void> => {
+  updateUserStats: async (userId: string, gameResult: GameResult): Promise<void> => {
     const userRef = doc(db, 'users', userId)
     const userData = await getDoc(userRef)
     const currentData = userData.data() as UserData
 
     const newGamesPlayed = currentData.stats.overall.gamesPlayed + 1
     const newAverageWPM = Math.round(
-      (currentData.stats.overall.averageWPM * currentData.stats.overall.gamesPlayed + wpm) / newGamesPlayed
+      (currentData.stats.overall.averageWPM * currentData.stats.overall.gamesPlayed + gameResult.wpm) / newGamesPlayed
     )
-    const newBestWPM = Math.max(currentData.stats.overall.bestWPM, wpm)
+    const newBestWPM = Math.max(currentData.stats.overall.bestWPM, gameResult.wpm)
 
     await updateDoc(userRef, {
       'stats.overall.gamesPlayed': newGamesPlayed,
       'stats.overall.averageWPM': newAverageWPM,
       'stats.overall.bestWPM': newBestWPM,
+      'stats.overall.totalWordsTyped': currentData.stats.overall.totalWordsTyped + gameResult.wordsTyped,
+      'stats.overall.totalCharactersTyped': currentData.stats.overall.totalCharactersTyped + gameResult.charactersTyped,
+      'stats.overall.totalMistakes': currentData.stats.overall.totalMistakes + gameResult.totalMistakes,
+      'stats.overall.totalTimePlayed': currentData.stats.overall.totalTimePlayed + gameResult.timePlayed, 
     })
   },
 
