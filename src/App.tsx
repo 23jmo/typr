@@ -1,31 +1,75 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthState } from 'react-firebase-hooks/auth'
-import { getAuth } from 'firebase/auth'
+import { auth } from './services/firebase'
+import { UserProvider } from './contexts/UserContext'
+import { useUser } from './contexts/UserContext'
 import Home from './pages/Home'
 import RaceRoom from './pages/RaceRoom'
 import SignIn from './pages/SignIn'
 import Header from './components/Header'
+import { useEffect } from 'react'
+// Create a separate component for the routes
+const AppRoutes = () => {
+  const [user, loading] = useAuthState(auth)
+  const { userData, refreshUserData,loading: userDataLoading } = useUser()
 
-function App() {
-  const [user, loading] = useAuthState(getAuth())
+  useEffect(() => {
+    if (user) {
+      console.log('user is logged in')  
+      refreshUserData()
+    }
+  }, [user])
 
-  if (loading) {
+  if (loading || userDataLoading) {
     return <div className="min-h-screen bg-[#323437] text-[#d1d0c5] flex items-center justify-center">Loading...</div>
   }
 
+  // User is not logged in
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/signin" element={<SignIn />} />
+        <Route path="*" element={<Navigate to="/signin" />} />
+      </Routes>
+    )
+  }
+
+  // User is logged in but needs username
+  if (!userData?.username) {
+    return (
+      <Routes>
+        <Route path="/signin" element={<SignIn />} />
+        <Route path="*" element={<Navigate to="/signin" />} />
+      </Routes>
+    )
+  }
+
+  // User is fully authenticated with username
   return (
-    <Router>
-      <div className="min-h-screen bg-[#323437] text-[#d1d0c5]">
-        {user && <Header />}
-        <div className={user ? 'pt-14' : ''}>
-          <Routes>
-            <Route path="/signin" element={user ? <Navigate to="/" /> : <SignIn />} />
-            <Route path="/" element={user ? <Home /> : <Navigate to="/signin" />} />
-            <Route path="/race/:roomId" element={user ? <RaceRoom /> : <Navigate to="/signin" />} />
-          </Routes>
-        </div>
+    <>
+      <Header />
+      <div className="pt-14">
+        <Routes>
+          <Route path="/signin" element={<Navigate to="/" />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/race/:roomId" element={<RaceRoom />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
       </div>
-    </Router>
+    </>
+  )
+}
+
+// Main App component
+function App() {
+  return (
+    <UserProvider>
+      <Router>
+        <div className="min-h-screen bg-[#323437] text-[#d1d0c5]">
+          <AppRoutes />
+        </div>
+      </Router>
+    </UserProvider>
   )
 }
 
