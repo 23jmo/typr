@@ -47,7 +47,7 @@ const Header = () => {
               <div className="px-4 py-2 text-sm text-[#d1d0c5]">
                 {userData?.username || userData?.email}
               </div>
-              <div className="px-4 py-2 text-sm text-[#d1d0c5]">
+              <div className="px-4 py-2 text-sm text-[#d1d0c5] cursor-pointer hover:text-[#e2b714]">
                 <button onClick={() => navigate('/stats')}>Stats</button>
               </div>
             </div>

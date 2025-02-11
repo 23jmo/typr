@@ -2,3 +2,8 @@
 Features:
   ☐ Add loading screen for loading user data 
 
+Fixes:
+  ☐ Fix the graph 
+    ☐ stop it from generating points at infinity (div by 0)
+    ☐ character data is also wrong
+    ☐ fix the graphics too 

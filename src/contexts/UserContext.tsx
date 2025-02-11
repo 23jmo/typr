@@ -2,33 +2,16 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { auth, userService } from '../services/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 
+import { UserData } from '../types'
+
 //TODO: fix the stats interface - standardize it within types.tsx
 //TODO: show a loading indicator while the user data is loading 
 
 
-interface UserStats {
-  overall: {
-    gamesPlayed: number
-    averageWPM: number
-    bestWPM: number
-    // ... other stats
-  }
-  ranked: {
-    gamesPlayed: number
-    averageWPM: number
-    bestWPM: number
-    // ... other stats
-  }
-}
+
 
 interface UserContextType {
-  userData: {
-    uid: string
-    email: string | null
-    username: string | null
-    photoURL: string | null
-    stats: UserStats
-  } | null
+  userData: UserData | null
   loading: boolean
   refreshUserData: () => Promise<void>
 }
@@ -45,9 +28,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setUserData({
         uid,
         email: data.email,
+        displayName: data.displayName,
+        createdAt: data.createdAt,
         username: data.username,
         photoURL: data.photoURL,
-        stats: data.stats
+        stats: data.stats,
+        games: data.games,
+        updatedAt: data.updatedAt
       })
     }
   }
