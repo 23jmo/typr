@@ -46,8 +46,8 @@ const RaceRoom = () => {
         const wordsTyped = newInput.length / 5
         setWpm(Math.round(wordsTyped / timeElapsed) || 0)
 
-        // Check if finished
-        if (newInput === text) {
+        // Check if finished - only compare lengths
+        if (newInput.length === text.length) {
           setIsFinished(true)
         }
       } else if (e.key === 'Backspace') {
@@ -87,7 +87,7 @@ const RaceRoom = () => {
       <div className="w-full max-w-[80%] mt-[30vh]">
         <div 
           ref={textContainerRef}
-          className="text-4xl leading-relaxed font-mono relative flex flex-wrap"
+          className="text-4xl leading-relaxed font-mono relative flex flex-wrap select-none"
         >
           {!isFinished && (
             <span 
