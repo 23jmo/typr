@@ -60,33 +60,13 @@ const RaceRoom = () => {
           return
         }
 
-        // Set up realtime database reference for presence
-        const rtdb = getDatabase()
-        const presenceRef = ref(rtdb, `presence/${roomId}/${username}`)
-        
-        // When this client disconnects, update Firestore
-        await onDisconnect(presenceRef).remove()
-
-        // Mark as online in realtime database
-        await set(presenceRef, true)
-
-        // Update Firestore player status
+        // Mark as connected
         await updateDoc(roomRef, {
           [`players.${username}.connected`]: true
         })
 
-        // Listen for presence changes and update Firestore
-        onValue(ref(rtdb, `presence/${roomId}`), async (snapshot) => {
-          const connectedPlayers = snapshot.val() || {}
-          const updates = Object.keys(gameData?.players || {}).reduce((acc, playerId) => ({
-            ...acc,
-            [`players.${playerId}.connected`]: !!connectedPlayers[playerId]
-          }), {})
-          
-          if (Object.keys(updates).length > 0) {
-            await updateDoc(roomRef, updates)
-          }
-        })
+        // Set up cleanup for tab close/refresh
+        window.addEventListener('beforeunload', handleDisconnect)
 
       } catch (error) {
         console.error('Error setting up presence:', error)
@@ -103,6 +83,7 @@ const RaceRoom = () => {
 
     return () => {
       unsubscribe()
+      window.removeEventListener('beforeunload', handleDisconnect)
       handleDisconnect()
     }
   }, [roomId, username])
@@ -112,10 +93,6 @@ const RaceRoom = () => {
     if (!username || !roomId) return
     
     try {
-      const rtdb = getDatabase()
-      const presenceRef = ref(rtdb, `presence/${roomId}/${username}`)
-      await set(presenceRef, null)
-      
       const db = getFirestore()
       const roomRef = doc(db, 'gameRooms', roomId)
       await updateDoc(roomRef, {

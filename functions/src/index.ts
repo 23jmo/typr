@@ -22,44 +22,50 @@ interface GameData {
   text: string
   startTime?: admin.firestore.Timestamp | number
   countdownStartedAt?: admin.firestore.Timestamp
+  createdAt?: admin.firestore.Timestamp
   winner?: string
   timeLimit: number // in seconds
 }
 
-// export const handlePlayerDisconnect = onDocumentUpdated({
-//   document: 'gameRooms/{roomId}',
-//   region: 'us-central1'
-// }, async (event) => {
-//   if (!event.data) return
+export const handlePlayerDisconnect = onDocumentUpdated({
+  document: 'gameRooms/{roomId}',
+  region: 'us-central1'
+}, async (event) => {
+  if (!event.data) return
 
-//   const newData = event.data.after.data() as GameData
-//   const oldData = event.data.before.data() as GameData
+  const newData = event.data.after.data() as GameData
+  const oldData = event.data.before.data() as GameData
   
-//   logger.info('Function triggered with:', { 
-//     roomId: event.params.roomId,
-//     oldPlayers: oldData?.players,
-//     newPlayers: newData?.players,
-//     isNewRoom: !oldData || !oldData.players
-//   })
+  logger.info('Function triggered with:', { 
+    roomId: event.params.roomId,
+    oldPlayers: oldData?.players,
+    newPlayers: newData?.players,
+    isNewRoom: !oldData || !oldData.players
+  })
 
-//   // Skip if this is a new room creation or update
-//   if (!oldData || !oldData.players || Object.keys(oldData.players).length === 0) {
-//     logger.info('Skipping - new room or initial player join')
-//     return
-//   }
+  // Skip if this is a new room creation or update
+  if (!oldData || !oldData.players || Object.keys(oldData.players).length === 0) {
+    logger.info('Skipping - new room or initial player join')
+    return
+  }
 
-//   // Log all player states before checking for disconnects
-//   logger.info('Player states:', {
-//     oldPlayerStates: Object.entries(oldData.players || {}).map(([id, player]) => ({
-//       id,
-//       connected: player.connected
-//     })),
-//     newPlayerStates: Object.entries(newData.players || {}).map(([id, player]) => ({
-//       id,
-//       connected: player.connected
-//     }))
-//   })
-// })
+  // Check if room is at least 1 second old
+  const roomCreatedAt = newData.createdAt?.toMillis() || Date.now()
+  if (Date.now() - roomCreatedAt < 1000) {
+    logger.info('Room too new, skipping deletion check')
+    return
+  }
+
+  // Check if there are players and all are disconnected
+  const players = Object.values(newData.players || {})
+  if (players.length > 0 && players.every(player => !player.connected)) {
+    logger.info('All players disconnected, deleting room')
+    await event.data.after.ref.delete()
+    return
+  }
+
+  logger.info('Room persists - either has connected players or no players')
+})
 
 export const handleGameStateChange = onDocumentUpdated({
   document: 'gameRooms/{roomId}',
