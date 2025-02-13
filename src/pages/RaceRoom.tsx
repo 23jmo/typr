@@ -1,5 +1,27 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useLocation } from 'react-router-dom'
+import { getFirestore, doc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore'
+import { getDatabase, ref, onValue, set, onDisconnect } from 'firebase/database'
+
+interface Player {
+  connected?: boolean
+  joinedAt?: any
+  name?: string
+  wpm?: number
+  accuracy?: number
+  progress?: number
+  ready?: boolean
+}
+
+interface GameData {
+  players: { [key: string]: Player }
+  status: 'waiting' | 'countdown' | 'racing' | 'finished'
+  text: string
+  startTime?: number
+  countdownStartedAt?: number
+  winner?: string
+  timeLimit: number // in seconds
+}
 
 const SAMPLE_TEXT = "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!"
 
@@ -7,6 +29,8 @@ const cursorStyle = "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-
 
 const RaceRoom = () => {
   const { roomId } = useParams()
+  const location = useLocation()
+  const username = location.state?.username
   const [text] = useState(SAMPLE_TEXT)
   const [userInput, setUserInput] = useState('')
   const [startTime, setStartTime] = useState<number | null>(null)
@@ -15,8 +39,94 @@ const RaceRoom = () => {
   const [isFinished, setIsFinished] = useState(false)
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 })
   const textContainerRef = useRef<HTMLDivElement>(null)
+  const [gameData, setGameData] = useState<GameData | null>(null)
+  const [ready, setReady] = useState(false)
+  const [countdown, setCountdown] = useState<number | null>(null)
 
-  // Add keydown event listener
+  // Update the connection setup effect
+  useEffect(() => {
+    if (!username || !roomId) return
+
+    const db = getFirestore()
+    const roomRef = doc(db, 'gameRooms', roomId)
+
+    // Set up presence system using Realtime Database
+    const setupPresence = async () => {
+      try {
+        // First ensure player exists in room
+        const roomDoc = await getDoc(roomRef)
+        if (!roomDoc.exists()) {
+          console.error('Room does not exist')
+          return
+        }
+
+        // Set up realtime database reference for presence
+        const rtdb = getDatabase()
+        const presenceRef = ref(rtdb, `presence/${roomId}/${username}`)
+        
+        // When this client disconnects, update Firestore
+        await onDisconnect(presenceRef).remove()
+
+        // Mark as online in realtime database
+        await set(presenceRef, true)
+
+        // Update Firestore player status
+        await updateDoc(roomRef, {
+          [`players.${username}.connected`]: true
+        })
+
+        // Listen for presence changes and update Firestore
+        onValue(ref(rtdb, `presence/${roomId}`), async (snapshot) => {
+          const connectedPlayers = snapshot.val() || {}
+          const updates = Object.keys(gameData?.players || {}).reduce((acc, playerId) => ({
+            ...acc,
+            [`players.${playerId}.connected`]: !!connectedPlayers[playerId]
+          }), {})
+          
+          if (Object.keys(updates).length > 0) {
+            await updateDoc(roomRef, updates)
+          }
+        })
+
+      } catch (error) {
+        console.error('Error setting up presence:', error)
+      }
+    }
+
+    setupPresence()
+
+    // Listen for room updates
+    const unsubscribe = onSnapshot(roomRef, (snapshot) => {
+      const data = snapshot.data() as GameData
+      if (data) setGameData(data)
+    })
+
+    return () => {
+      unsubscribe()
+      handleDisconnect()
+    }
+  }, [roomId, username])
+
+  // Update handleDisconnect function
+  const handleDisconnect = async () => {
+    if (!username || !roomId) return
+    
+    try {
+      const rtdb = getDatabase()
+      const presenceRef = ref(rtdb, `presence/${roomId}/${username}`)
+      await set(presenceRef, null)
+      
+      const db = getFirestore()
+      const roomRef = doc(db, 'gameRooms', roomId)
+      await updateDoc(roomRef, {
+        [`players.${username}.connected`]: false
+      })
+    } catch (error) {
+      console.error('Error handling disconnect:', error)
+    }
+  }
+
+  // Update the keydown event listener to handle completion
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (isFinished) return
@@ -27,9 +137,6 @@ const RaceRoom = () => {
       // Only handle alphanumeric keys, space, and punctuation
       if (e.key.length === 1) {
         e.preventDefault()
-        if (!startTime) {
-          setStartTime(Date.now())
-        }
 
         const newInput = userInput + e.key
         setUserInput(newInput)
@@ -46,9 +153,17 @@ const RaceRoom = () => {
         const wordsTyped = newInput.length / 5
         setWpm(Math.round(wordsTyped / timeElapsed) || 0)
 
-        // Check if finished - only compare lengths
+        // Check if finished
         if (newInput.length === text.length) {
           setIsFinished(true)
+          // Update player's finished status immediately
+          if (username && roomId) {
+            const db = getFirestore()
+            updateDoc(doc(db, 'gameRooms', roomId), {
+              [`players.${username}.finished`]: true,
+              [`players.${username}.finishTime`]: serverTimestamp()
+            }).catch(console.error)
+          }
         }
       } else if (e.key === 'Backspace') {
         e.preventDefault()
@@ -58,7 +173,7 @@ const RaceRoom = () => {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [text, userInput, startTime, isFinished])
+  }, [text, userInput, startTime, isFinished, username, roomId])
 
   // Update cursor position when input changes
   useEffect(() => {
@@ -75,6 +190,67 @@ const RaceRoom = () => {
     }
   }, [userInput])
 
+  // Add effect to handle game state changes
+  useEffect(() => {
+    if (!gameData) return
+
+    // Handle countdown
+    if (gameData.status === 'countdown' && gameData.countdownStartedAt) {
+      const countdownDuration = 3 // 3 seconds countdown
+      const countdownEnd = (gameData.countdownStartedAt as any).toMillis() + (countdownDuration * 1000)
+      setStartTime(countdownEnd) // Set start time to when countdown ends
+      const timeLeft = Math.ceil((countdownEnd - Date.now()) / 1000)
+
+      if (timeLeft > 0) {
+        setCountdown(timeLeft)
+        const timer = setInterval(() => {
+          const newTimeLeft = Math.ceil((countdownEnd - Date.now()) / 1000)
+          setCountdown(newTimeLeft)
+          
+          if (newTimeLeft <= 0) {
+            clearInterval(timer)
+            // Start the race
+            updateDoc(doc(getFirestore(), 'gameRooms', roomId!), {
+              status: 'racing',
+              startTime: serverTimestamp()
+            })
+          }
+        }, 1000)
+        return () => clearInterval(timer)
+      }
+    }
+
+    // Handle race completion
+    if (gameData.status === 'finished' && gameData.winner) {
+      setIsFinished(true)
+    }
+  }, [gameData])
+
+  // Update the progress effect to include finished state
+  useEffect(() => {
+    if (!username || !roomId || !gameData || gameData.status !== 'racing') return
+
+    const progress = (userInput.length / text.length) * 100
+    const isComplete = progress === 100
+
+    updateDoc(doc(getFirestore(), 'gameRooms', roomId), {
+      [`players.${username}.progress`]: progress,
+      [`players.${username}.wpm`]: wpm,
+      [`players.${username}.accuracy`]: accuracy,
+      [`players.${username}.finished`]: isComplete,
+      ...(isComplete ? { [`players.${username}.finishTime`]: serverTimestamp() } : {})
+    })
+  }, [userInput, wpm, accuracy])
+
+  const toggleReady = async () => {
+    if (!username || !roomId) return
+    const newReadyState = !ready
+    setReady(newReadyState)
+    await updateDoc(doc(getFirestore(), 'gameRooms', roomId), {
+      [`players.${username}.ready`]: newReadyState
+    })
+  }
+
   return (
     <div className="flex flex-col items-center min-h-screen p-4">
       <div className="fixed top-4 left-4 right-4">
@@ -84,63 +260,119 @@ const RaceRoom = () => {
         </div>
       </div>
 
-      <div className="w-full max-w-[80%] mt-[30vh]">
-        <div 
-          ref={textContainerRef}
-          className="text-4xl leading-relaxed font-mono relative flex flex-wrap select-none"
-        >
-          {!isFinished && (
-            <span 
-              className="absolute w-0.5 h-[1.1em] bg-[#d1d0c5] top-[0.1em] animate-pulse transition-all duration-75 left-0"
-              style={{ 
-                transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px)`,
-              }}
-            />
-          )}
-          
-          {text.split(' ').map((word, wordIndex, wordArray) => {
-            const previousWordsLength = wordArray
-              .slice(0, wordIndex)
-              .reduce((acc, word) => acc + word.length + 1, 0);
-
-            return (
-              <span key={wordIndex} className="flex">
-                {word.split('').map((char, charIndex) => {
-                  const index = previousWordsLength + charIndex
-                  
-                  let color = 'text-[#646669]'
-                  if (index < userInput.length) {
-                    color = userInput[index] === char ? 'text-[#d1d0c5]' : 'text-red-500'
-                  }
-                  return (
-                    <span 
-                      key={charIndex}
-                      className={`${color} ${index === userInput.length ? 'relative' : ''}`}
-                    >
-                      {char}
-                    </span>
-                  )
-                })}
-                {wordIndex < wordArray.length - 1 && (
-                  <span className={`${
-                    previousWordsLength + word.length < userInput.length 
-                      ? 'text-[#d1d0c5]' 
-                      : 'text-[#646669]'
-                  } relative`}>
-                    &nbsp;
-                  </span>
-                )}
-              </span>
-            )
-          })}
-        </div>
-
-        {isFinished && (
-          <div className="text-center text-2xl text-green-500 mt-12">
-            Completed! Final WPM: {wpm} | Accuracy: {accuracy}%
-          </div>
-        )}
+      {/* Player list */}
+      <div className="fixed top-20 left-4 space-y-2">
+        {gameData && Object.entries(gameData.players)
+          .sort((a, b) => {
+            const aTime = a[1].joinedAt?.toMillis?.() || 0
+            const bTime = b[1].joinedAt?.toMillis?.() || 0
+            return aTime - bTime
+          })
+          .map(([playerId, player]) => (
+            <div key={playerId} className="flex items-center space-x-2">
+              <span className={`${player.connected ? 'text-green-500' : 'text-red-500'}`}>●</span>
+              <span>{player.name}</span>
+              <span>{player.ready ? '(Ready)' : '(Not Ready)'}</span>
+              {gameData.status === 'racing' && (
+                <div className="w-24 h-2 bg-gray-700 rounded">
+                  <div 
+                    className="h-full bg-green-500 rounded"
+                    style={{ width: `${player.progress || 0}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
       </div>
+
+      {/* Game status */}
+      {gameData?.status === 'waiting' && (
+        <button
+          onClick={toggleReady}
+          className={`px-4 py-2 rounded ${
+            ready ? 'bg-green-500' : 'bg-yellow-500'
+          }`}
+        >
+          {ready ? 'Ready!' : 'Click when ready'}
+        </button>
+      )}
+
+      {gameData?.status === 'countdown' && (
+        <div className="text-6xl font-bold mb-8">
+          {countdown}
+        </div>
+      )}
+
+      {/* Existing typing interface */}
+      {gameData?.status === 'racing' && (
+        <div className="w-full max-w-[80%] mt-[30vh]">
+          <div 
+            ref={textContainerRef}
+            className="text-4xl leading-relaxed font-mono relative flex flex-wrap select-none"
+          >
+            {!isFinished && (
+              <span 
+                className="absolute w-0.5 h-[1.1em] bg-[#d1d0c5] top-[0.1em] animate-pulse transition-all duration-75 left-0"
+                style={{ 
+                  transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px)`,
+                }}
+              />
+            )}
+            
+            {text.split(' ').map((word, wordIndex, wordArray) => {
+              const previousWordsLength = wordArray
+                .slice(0, wordIndex)
+                .reduce((acc, word) => acc + word.length + 1, 0);
+
+              return (
+                <span key={wordIndex} className="flex">
+                  {word.split('').map((char, charIndex) => {
+                    const index = previousWordsLength + charIndex
+                    
+                    let color = 'text-[#646669]'
+                    if (index < userInput.length) {
+                      color = userInput[index] === char ? 'text-[#d1d0c5]' : 'text-red-500'
+                    }
+                    return (
+                      <span 
+                        key={charIndex}
+                        className={`${color} ${index === userInput.length ? 'relative' : ''}`}
+                      >
+                        {char}
+                      </span>
+                    )
+                  })}
+                  {wordIndex < wordArray.length - 1 && (
+                    <span className={`${
+                      previousWordsLength + word.length < userInput.length 
+                        ? 'text-[#d1d0c5]' 
+                        : 'text-[#646669]'
+                    } relative`}>
+                      &nbsp;
+                    </span>
+                  )}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Winner screen */}
+      {gameData?.status === 'finished' && (
+        <div className="text-center text-2xl mt-12">
+          <h2 className="text-4xl mb-4">
+            {gameData.winner === username ? 'You won!' : `${gameData.players[gameData.winner!]?.name} won!`}
+          </h2>
+          <div className="space-y-2">
+            {Object.entries(gameData.players).map(([playerId, player]) => (
+              <div key={playerId}>
+                {player.name}: {player.wpm} WPM, {player.accuracy}% accuracy
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
