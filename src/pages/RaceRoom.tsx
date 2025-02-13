@@ -43,6 +43,31 @@ const RaceRoom = () => {
   const [ready, setReady] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
 
+  const updateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Function to update player data
+  const throttleUpdate = () => {
+    if (updateTimeout.current) return
+
+    updateTimeout.current = setTimeout(async () => {
+      const db = getFirestore()
+      const roomRef = doc(db, 'gameRooms', roomId!)
+
+      try {
+        await updateDoc(roomRef, {
+          [`players.${username}.progress`]: (userInput.length / text.length) * 100,
+          [`players.${username}.wpm`]: wpm,
+          [`players.${username}.accuracy`]: accuracy,
+          // Optionally, include other fields if necessary
+        })
+      } catch (error) {
+        console.error('Error updating player data:', error)
+      } finally {
+        updateTimeout.current = null
+      }
+    }, 1000) // Throttle interval in milliseconds
+  }
+
   // Update the connection setup effect
   useEffect(() => {
     if (!username || !roomId) return
@@ -50,10 +75,8 @@ const RaceRoom = () => {
     const db = getFirestore()
     const roomRef = doc(db, 'gameRooms', roomId)
 
-    // Set up presence system using Realtime Database
     const setupPresence = async () => {
       try {
-        // First ensure player exists in room
         const roomDoc = await getDoc(roomRef)
         if (!roomDoc.exists()) {
           console.error('Room does not exist')
@@ -67,7 +90,6 @@ const RaceRoom = () => {
 
         // Set up cleanup for tab close/refresh
         window.addEventListener('beforeunload', handleDisconnect)
-
       } catch (error) {
         console.error('Error setting up presence:', error)
       }
@@ -75,7 +97,6 @@ const RaceRoom = () => {
 
     setupPresence()
 
-    // Listen for room updates
     const unsubscribe = onSnapshot(roomRef, (snapshot) => {
       const data = snapshot.data() as GameData
       if (data) setGameData(data)
@@ -203,20 +224,11 @@ const RaceRoom = () => {
     }
   }, [gameData])
 
-  // Update the progress effect to include finished state
+  // Update the progress effect with throttling
   useEffect(() => {
     if (!username || !roomId || !gameData || gameData.status !== 'racing') return
 
-    const progress = (userInput.length / text.length) * 100
-    const isComplete = progress === 100
-
-    updateDoc(doc(getFirestore(), 'gameRooms', roomId), {
-      [`players.${username}.progress`]: progress,
-      [`players.${username}.wpm`]: wpm,
-      [`players.${username}.accuracy`]: accuracy,
-      [`players.${username}.finished`]: isComplete,
-      ...(isComplete ? { [`players.${username}.finishTime`]: serverTimestamp() } : {})
-    })
+    throttleUpdate()
   }, [userInput, wpm, accuracy])
 
   const toggleReady = async () => {
