@@ -58,6 +58,9 @@ const RaceRoom = () => {
 
   const updateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Add new state for WPM history
+  const [wpmHistory, setWpmHistory] = useState<Array<{ wpm: number, time: number }>>([])
+
   // Function to update player data
   const throttleUpdate = () => {
     if (updateTimeout.current) return
@@ -165,8 +168,12 @@ const RaceRoom = () => {
         // Calculate WPM and add to history
         const timeElapsed = (Date.now() - (startTime || Date.now())) / 1000 / 60
         const wordsTyped = newInput.length / 5
-        setWpm(Math.round(wordsTyped / timeElapsed) || 0)
-
+        const currentWpm = Math.round(wordsTyped / timeElapsed) || 0
+        setWpm(currentWpm)
+        setWpmHistory(prev => [...prev, { 
+          wpm: currentWpm, 
+          time: Date.now() - (startTime || Date.now())
+        }])
 
         // Check if finished
         if (newInput.length === text.length) {
@@ -365,19 +372,28 @@ const RaceRoom = () => {
         </div>
       )}
 
-      {/* Winner screen */}
+      {/* Winner screen and Stats */}
       {gameData?.status === 'finished' && (
-        <div className="text-center text-2xl mt-12">
-          <h2 className="text-4xl mb-4">
-            {gameData.winner === username ? 'You won!' : `${gameData.players[gameData.winner!]?.name} won!`}
-          </h2>
-          <div className="space-y-2">
-            {Object.entries(gameData.players).map(([playerId, player]) => (
-              <div key={playerId}>
-                {player.name}: {player.wpm} WPM, {player.accuracy}% accuracy
-              </div>
-            ))}
+        <div className="fixed inset-0 bg-[#323437] bg-opacity-95 flex flex-col items-center justify-center">
+          <div className="text-center text-2xl mb-8">
+            <h2 className="text-4xl mb-4">
+              {gameData.winner === username ? 'You won!' : `${gameData.players[gameData.winner!]?.name} won!`}
+            </h2>
+            <div className="space-y-2">
+              {Object.entries(gameData.players).map(([playerId, player]) => (
+                <div key={playerId}>
+                  {player.name}: {player.wpm} WPM, {player.accuracy}% accuracy
+                </div>
+              ))}
+            </div>
           </div>
+          
+          <StatsOverview 
+            wpm={wpm}
+            accuracy={accuracy}
+            startTime={startTime}
+            wpmHistory={wpmHistory}
+          />
         </div>
       )}
     </div>
