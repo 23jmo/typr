@@ -141,11 +141,7 @@ const RaceRoom = () => {
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Add Tab key handler for restart
-      if (e.key === 'Tab') {
-        e.preventDefault()
-        resetGame()
-        return
-      }
+
 
       if (isFinished) return
 

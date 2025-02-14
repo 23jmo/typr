@@ -1,12 +1,17 @@
 import { useNavigate } from 'react-router-dom'
+import { useUser } from '../contexts/UserContext'
+import { useState } from 'react'
 import { getFirestore, collection, doc, setDoc, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore'
 
 const Home = () => {
   const navigate = useNavigate()
-  const [username, setUsername] = useState('')
+  const { userData } = useUser()
   const [roomId, setRoomId] = useState('')
+  const [tempUsername, setTempUsername] = useState('')
+  const [showUsernameInput, setShowUsernameInput] = useState(false)
 
   const createGame = async () => {
+    const username = tempUsername || userData?.username
     if (!username) return
     
     try {
@@ -43,6 +48,7 @@ const Home = () => {
   }
 
   const joinGame = async () => {
+    const username = tempUsername || userData?.username
     if (!username || !roomId) return
     
     try {
@@ -87,6 +93,30 @@ const Home = () => {
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <h1 className="text-4xl font-bold mb-8">Typr</h1>
       <div className="w-full max-w-md space-y-4">
+        {showUsernameInput ? (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Temporary username"
+              value={tempUsername}
+              onChange={(e) => setTempUsername(e.target.value)}
+              className="flex-1 p-2 rounded bg-[#2c2e31] border border-[#646669] focus:outline-none focus:border-[#d1d0c5]"
+            />
+            <button
+              onClick={() => setShowUsernameInput(false)}
+              className="px-4 rounded bg-[#2c2e31] border border-[#646669] hover:bg-[#2c2e31]/90 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowUsernameInput(true)}
+            className="w-full p-2 rounded bg-[#2c2e31] border border-[#646669] hover:bg-[#2c2e31]/90 transition-colors"
+          >
+            Join with Different Username
+          </button>
+        )}
         <div className="flex gap-4">
           <button
             onClick={createGame}
@@ -111,6 +141,7 @@ const Home = () => {
           </div>
         </div>
       </div>
+    </div>
   )
 }
 
