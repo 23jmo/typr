@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getFirestore, collection, doc, setDoc, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore'
 
@@ -88,13 +87,6 @@ const Home = () => {
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <h1 className="text-4xl font-bold mb-8">Typr</h1>
       <div className="w-full max-w-md space-y-4">
-        <input
-          type="text"
-          placeholder="Enter username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="w-full p-2 rounded bg-[#2c2e31] border border-[#646669] focus:outline-none focus:border-[#d1d0c5]"
-        />
         <div className="flex gap-4">
           <button
             onClick={createGame}
@@ -119,7 +111,6 @@ const Home = () => {
           </div>
         </div>
       </div>
-    </div>
   )
 }
 

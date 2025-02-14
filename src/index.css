@@ -11,3 +11,11 @@ body {
 * {
   box-sizing: border-box;
 }
+
+html, body {
+  background-color: #323437;
+  overflow: hidden;
+  height: 100%;
+  position: fixed;
+  width: 100%;
+}
