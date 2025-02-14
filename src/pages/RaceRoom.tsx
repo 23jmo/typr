@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
 import { getFirestore, doc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore'
 import { getDatabase, ref, onValue, set, onDisconnect } from 'firebase/database'
+import { useUser } from '../contexts/UserContext'
+import StatsOverview from '../components/StatsOverview'
+import { GameResult } from '../types'
+import { auth, userService } from '../services/firebase'
 
 interface Player {
   connected?: boolean
@@ -27,10 +31,18 @@ const SAMPLE_TEXT = "The quick brown fox jumps over the lazy dog. Pack my box wi
 
 const cursorStyle = "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse transition-transform duration-75"
 
+//TODO: add a graph of wpm and accuracy over time
+
+
+
+
+
 const RaceRoom = () => {
+
   const { roomId } = useParams()
   const location = useLocation()
   const username = location.state?.username
+
   const [text] = useState(SAMPLE_TEXT)
   const [userInput, setUserInput] = useState('')
   const [startTime, setStartTime] = useState<number | null>(null)
@@ -39,6 +51,7 @@ const RaceRoom = () => {
   const [isFinished, setIsFinished] = useState(false)
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 })
   const textContainerRef = useRef<HTMLDivElement>(null)
+
   const [gameData, setGameData] = useState<GameData | null>(null)
   const [ready, setReady] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
@@ -127,6 +140,13 @@ const RaceRoom = () => {
   // Update the keydown event listener to handle completion
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Add Tab key handler for restart
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        resetGame()
+        return
+      }
+
       if (isFinished) return
 
       // Ignore if any modifier keys are pressed
@@ -146,10 +166,11 @@ const RaceRoom = () => {
         }
         setAccuracy(Math.round((correct / newInput.length) * 100) || 100)
 
-        // Calculate WPM
+        // Calculate WPM and add to history
         const timeElapsed = (Date.now() - (startTime || Date.now())) / 1000 / 60
         const wordsTyped = newInput.length / 5
         setWpm(Math.round(wordsTyped / timeElapsed) || 0)
+
 
         // Check if finished
         if (newInput.length === text.length) {
@@ -295,6 +316,7 @@ const RaceRoom = () => {
       {/* Existing typing interface */}
       {gameData?.status === 'racing' && (
         <div className="w-full max-w-[80%] mt-[30vh]">
+
           <div 
             ref={textContainerRef}
             className="text-4xl leading-relaxed font-mono relative flex flex-wrap select-none"

@@ -1,31 +1,91 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthState } from 'react-firebase-hooks/auth'
-import { getAuth } from 'firebase/auth'
+import { auth } from './services/firebase'
+import { UserProvider } from './contexts/UserContext'
+import { useUser } from './contexts/UserContext'
 import Home from './pages/Home'
 import RaceRoom from './pages/RaceRoom'
 import SignIn from './pages/SignIn'
 import Header from './components/Header'
+import { useEffect } from 'react'
+// Add global styles
+import './index.css'  // Create this if it doesn't exist
+import Stats from './pages/Stats'
 
-function App() {
-  const [user, loading] = useAuthState(getAuth())
+// Create a separate component for the routes
+const AppRoutes = () => {
+  const [user, loading] = useAuthState(auth)
+  const { userData, refreshUserData,loading: userDataLoading } = useUser()
 
-  if (loading) {
+  useEffect(() => {
+    if (user) {
+      console.log('user is logged in')  
+      refreshUserData()
+    }
+  }, [user])
+
+  if (loading || userDataLoading) {
     return <div className="min-h-screen bg-[#323437] text-[#d1d0c5] flex items-center justify-center">Loading...</div>
   }
 
+  // User is not logged in
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/signin" element={<SignIn />} />
+        <Route path="*" element={<Navigate to="/signin" />} />
+      </Routes>
+    )
+  }
+
+  // User is logged in but needs username
+  if (!userData?.username) {
+    return (
+      <Routes>
+        <Route path="/signin" element={<SignIn />} />
+        <Route path="*" element={<Navigate to="/signin" />} />
+      </Routes>
+    )
+  }
+
+  // User is fully authenticated with username
   return (
-    <Router>
-      <div className="min-h-screen bg-[#323437] text-[#d1d0c5]">
-        {user && <Header />}
-        <div className={user ? 'pt-14' : ''}>
-          <Routes>
-            <Route path="/signin" element={user ? <Navigate to="/" /> : <SignIn />} />
-            <Route path="/" element={user ? <Home /> : <Navigate to="/signin" />} />
-            <Route path="/race/:roomId" element={user ? <RaceRoom /> : <Navigate to="/signin" />} />
-          </Routes>
-        </div>
+    <>
+      <Header />
+      <div className="pt-14">
+        <Routes>
+          <Route path="/signin" element={<Navigate to="/" />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/race/:roomId" element={<RaceRoom />} />
+          <Route path="/stats" element={<Stats />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
       </div>
-    </Router>
+    </>
+  )
+}
+
+// Main App component
+function App() {
+  useEffect(() => {
+    // Set background color on html and body elements
+    document.documentElement.style.backgroundColor = '#323437'
+    document.body.style.backgroundColor = '#323437'
+    
+    return () => {
+      document.documentElement.style.backgroundColor = ''
+      document.body.style.backgroundColor = ''
+    }
+  }, [])
+
+  return (
+    <UserProvider>
+      <Router>
+        <div className="min-h-screen bg-[#323437] text-[#d1d0c5]">
+          <AppRoutes />
+        </div>
+      </Router>
+    </UserProvider>
   )
 }
 
