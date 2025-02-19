@@ -11,7 +11,9 @@ import { useEffect } from 'react'
 // Add global styles
 import './index.css'  // Create this if it doesn't exist
 import Stats from './pages/Stats'
-
+import CustomRoom from './pages/CustomRoom'
+import Solo from './pages/Solo'
+import Ranked from './pages/Ranked'
 // Create a separate component for the routes
 const AppRoutes = () => {
   const [user, loading] = useAuthState(auth)
@@ -56,6 +58,9 @@ const AppRoutes = () => {
         <Routes>
           <Route path="/signin" element={<Navigate to="/" />} />
           <Route path="/" element={<Home />} />
+          <Route path="/custom" element={<CustomRoom />} />
+          <Route path="/ranked" element={<Ranked />} />
+          <Route path="/solo" element={<Solo />} />
           <Route path="/race/:roomId" element={<RaceRoom />} />
           <Route path="/stats" element={<Stats />} />
           <Route path="*" element={<Navigate to="/" />} />
