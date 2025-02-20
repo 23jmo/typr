@@ -4,6 +4,7 @@ import { useUser } from "../contexts/UserContext";
 import StatsOverview from "../components/StatsOverview";
 import { GameResult } from "../types";
 import { auth, userService } from "../services/firebase";
+import { generateTextByTopic } from "../utilities/random-text";
 
 const SAMPLE_TEXT =
   "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
@@ -13,8 +14,36 @@ const cursorStyle =
 
 //TODO: add a graph of wpm and accuracy over time
 
+const TextSkeleton = () => (
+  <div className="animate-pulse">
+    <div className="h-8 bg-[#2c2e31] rounded mb-4"></div>
+    <div className="h-8 bg-[#2c2e31] rounded mb-4"></div>
+    <div className="h-8 bg-[#2c2e31] rounded mb-4"></div>
+    <div className="h-8 bg-[#2c2e31] rounded w-3/4 mb-4"></div>
+    
+    
+    
+  </div>
+);
+
+const TypeText = ({
+  onTextGenerated,
+}: {
+  onTextGenerated: (text: string) => void;
+}) => {
+  useEffect(() => {
+    const generateText = async () => {
+      const text = await generateTextByTopic("random"); // Wait for text generation
+      onTextGenerated(text); // Call the callback with the generated text
+    };
+    generateText();
+  }, []); // Empty dependency array means this runs once when component mounts
+
+  return <TextSkeleton />; // Show skeleton while generating
+};
+
 const Solo = () => {
-  const [text] = useState(SAMPLE_TEXT);
+  const [text, setText] = useState("");
   const [userInput, setUserInput] = useState("");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [wpm, setWpm] = useState(0);
@@ -144,73 +173,77 @@ const Solo = () => {
   return (
     <div className="inset-0 flex flex-col items-center p-4">
       <div className="w-full max-w-[80%] mt-[30vh]">
-        {isFinished ? (
-          <StatsOverview
-            wpm={wpm}
-            accuracy={accuracy}
-            startTime={startTime}
-            wpmHistory={wpmHistory}
-          />
-        ) : (
-          <div
-            ref={textContainerRef}
-            className="text-4xl leading-relaxed font-mono relative flex flex-wrap select-none"
-          >
-            {!isFinished && (
-              <span
-                className="absolute w-0.5 h-[1.1em] bg-[#d1d0c5] top-[0.1em] animate-pulse transition-all duration-75 left-0"
-                style={{
-                  transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px)`,
-                }}
-              />
-            )}
-
-            {text.split(" ").map((word, wordIndex, wordArray) => {
-              const previousWordsLength = wordArray
-                .slice(0, wordIndex)
-                .reduce((acc, word) => acc + word.length + 1, 0);
-
-              return (
+        {text ? (
+          isFinished ? (
+            <StatsOverview
+              wpm={wpm}
+              accuracy={accuracy}
+              startTime={startTime}
+              wpmHistory={wpmHistory}
+            />
+          ) : (
+            <div
+              ref={textContainerRef}
+              className="text-4xl leading-relaxed font-mono relative flex flex-wrap select-none"
+            >
+              {!isFinished && (
                 <span
-                  key={wordIndex}
-                  className="flex"
-                >
-                  {word.split("").map((char, charIndex) => {
-                    const index = previousWordsLength + charIndex;
+                  className="absolute w-0.5 h-[1.1em] bg-[#d1d0c5] top-[0.1em] animate-pulse transition-all duration-75 left-0"
+                  style={{
+                    transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px)`,
+                  }}
+                />
+              )}
 
-                    let color = "text-[#646669]";
-                    if (index < userInput.length) {
-                      color =
-                        userInput[index] === char
-                          ? "text-[#d1d0c5]"
-                          : "text-red-500";
-                    }
-                    return (
+              {text.split(" ").map((word, wordIndex, wordArray) => {
+                const previousWordsLength = wordArray
+                  .slice(0, wordIndex)
+                  .reduce((acc, word) => acc + word.length + 1, 0);
+
+                return (
+                  <span
+                    key={wordIndex}
+                    className="flex"
+                  >
+                    {word.split("").map((char, charIndex) => {
+                      const index = previousWordsLength + charIndex;
+
+                      let color = "text-[#646669]";
+                      if (index < userInput.length) {
+                        color =
+                          userInput[index] === char
+                            ? "text-[#d1d0c5]"
+                            : "text-red-500";
+                      }
+                      return (
+                        <span
+                          key={charIndex}
+                          className={`${color} ${
+                            index === userInput.length ? "relative" : ""
+                          }`}
+                        >
+                          {char}
+                        </span>
+                      );
+                    })}
+                    {wordIndex < wordArray.length - 1 && (
                       <span
-                        key={charIndex}
-                        className={`${color} ${
-                          index === userInput.length ? "relative" : ""
-                        }`}
+                        className={`${
+                          previousWordsLength + word.length < userInput.length
+                            ? "text-[#d1d0c5]"
+                            : "text-[#646669]"
+                        } relative`}
                       >
-                        {char}
+                        &nbsp;
                       </span>
-                    );
-                  })}
-                  {wordIndex < wordArray.length - 1 && (
-                    <span
-                      className={`${
-                        previousWordsLength + word.length < userInput.length
-                          ? "text-[#d1d0c5]"
-                          : "text-[#646669]"
-                      } relative`}
-                    >
-                      &nbsp;
-                    </span>
-                  )}
-                </span>
-              );
-            })}
-          </div>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <TypeText onTextGenerated={setText} />
         )}
 
         <div className="flex justify-center items-center mt-10">
