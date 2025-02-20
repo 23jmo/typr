@@ -20,9 +20,6 @@ const TextSkeleton = () => (
     <div className="h-8 bg-[#2c2e31] rounded mb-4"></div>
     <div className="h-8 bg-[#2c2e31] rounded mb-4"></div>
     <div className="h-8 bg-[#2c2e31] rounded w-3/4 mb-4"></div>
-    
-    
-    
   </div>
 );
 
@@ -56,6 +53,14 @@ const Solo = () => {
   >([]);
 
   const wpmInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Add new state for character tracking
+  const [charStats, setCharStats] = useState({
+    correct: 0,
+    incorrect: 0,
+    extra: 0,
+    missed: 0,
+  });
 
   const resetGame = () => {
     setUserInput("");
@@ -93,12 +98,28 @@ const Solo = () => {
         const newInput = userInput + e.key;
         setUserInput(newInput);
 
-        // Calculate accuracy
-        let correct = 0;
-        for (let i = 0; i < newInput.length; i++) {
-          if (newInput[i] === text[i]) correct++;
-        }
-        setAccuracy(Math.round((correct / newInput.length) * 100) || 100);
+        // Check just the new character
+        const currentIndex = newInput.length - 1;
+
+        setCharStats((prev) => {
+          if (currentIndex >= text.length) {
+            // Extra character
+            return { ...prev, extra: prev.extra + 1 };
+          }
+
+          if (newInput[currentIndex] === text[currentIndex]) {
+            // Correct character
+            return { ...prev, correct: prev.correct + 1 };
+          } else {
+            // Incorrect character
+            return { ...prev, incorrect: prev.incorrect + 1 };
+          }
+        });
+
+        // Calculate accuracy based on current stats
+        const totalChars =
+          charStats.correct + charStats.incorrect + charStats.extra;
+        setAccuracy(Math.round((charStats.correct / totalChars) * 100) || 100);
 
         // Calculate WPM and add to history
         const timeElapsed =
@@ -122,6 +143,21 @@ const Solo = () => {
         }
       } else if (e.key === "Backspace") {
         e.preventDefault();
+        const deletedIndex = userInput.length - 1;
+
+        // Remove the last character's stats
+        setCharStats((prev) => {
+          if (deletedIndex >= text.length) {
+            return { ...prev, extra: prev.extra - 1 };
+          }
+
+          if (userInput[deletedIndex] === text[deletedIndex]) {
+            return { ...prev, correct: prev.correct - 1 };
+          } else {
+            return { ...prev, incorrect: prev.incorrect - 1 };
+          }
+        });
+
         setUserInput((prev) => prev.slice(0, -1));
       }
     };
@@ -180,6 +216,7 @@ const Solo = () => {
               accuracy={accuracy}
               startTime={startTime}
               wpmHistory={wpmHistory}
+              charStats={charStats}
             />
           ) : (
             <div

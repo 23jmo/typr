@@ -5,6 +5,8 @@ interface WpmGraphProps {
   wpmHistory: Array<{ wpm: number, time: number }>
 }
 
+
+
 const WpmGraph = ({ wpm, wpmHistory }: WpmGraphProps) => {
   const [hoveredPoint, setHoveredPoint] = useState<{ wpm: number; time: number } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
