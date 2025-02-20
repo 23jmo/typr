@@ -6,14 +6,32 @@ interface StatsOverviewProps {
   accuracy: number;
   startTime: number | null;
   wpmHistory: Array<{ wpm: number; time: number }>;
+  charStats: {
+    correct: number;
+    incorrect: number;
+    extra: number;
+    missed: number;
+  };
 }
+
+const preprocessWpmHistory = (
+  wpmHistory: Array<{ wpm: number; time: number }>
+) => {
+  // clear all points where time is 0
+  // clear all points where wpm is not a number
+
+  return wpmHistory.filter((point) => point.time !== 0 && !isNaN(point.wpm));
+};
 
 const StatsOverview = ({
   wpm,
   accuracy,
   startTime,
   wpmHistory,
+  charStats,
 }: StatsOverviewProps) => {
+  
+  wpmHistory = preprocessWpmHistory(wpmHistory);
   const [hoveredPoint, setHoveredPoint] = useState<{
     wpm: number;
     time: number;
@@ -53,18 +71,7 @@ const StatsOverview = ({
 
   // Calculate character stats
   const calculateCharStats = () => {
-    let correct = 0;
-    let incorrect = 0;
-    let extra = 0;
-    let missed = 0;
-
-    wpmHistory.forEach((point, i) => {
-      if (i === 0) {
-        correct = point.wpm * 5; // Approximate characters from WPM
-        incorrect = Math.round(((100 - accuracy) * correct) / 100);
-        correct = correct - incorrect;
-      }
-    });
+    const { correct, incorrect, extra, missed } = charStats;
 
     return `${correct}/${incorrect}/${extra}/${missed}`;
   };
