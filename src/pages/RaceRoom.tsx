@@ -34,9 +34,6 @@ const cursorStyle = "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-
 //TODO: add a graph of wpm and accuracy over time
 
 
-
-
-
 const RaceRoom = () => {
 
   const { roomId } = useParams()
