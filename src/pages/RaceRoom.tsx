@@ -5,22 +5,10 @@ import {
   doc,
   onSnapshot,
   updateDoc,
-  deleteDoc,
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
-import {
-  getDatabase,
-  ref,
-  onValue,
-  set,
-  onDisconnect,
-} from "firebase/database";
-import { useUser } from "../contexts/UserContext";
 import StatsOverview from "../components/StatsOverview";
-import { GameResult } from "../types";
-import { auth, userService } from "../services/firebase";
-
 interface Player {
   connected?: boolean;
   joinedAt?: any;
@@ -29,6 +17,8 @@ interface Player {
   accuracy?: number;
   progress?: number;
   ready?: boolean;
+  finished?: boolean;
+  wantsRematch?: boolean;
 }
 
 interface GameData {
@@ -43,9 +33,6 @@ interface GameData {
 
 const SAMPLE_TEXT =
   "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
-
-const cursorStyle =
-  "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse transition-transform duration-75";
 
 //TODO: add a graph of wpm and accuracy over time
 
@@ -64,7 +51,6 @@ const RaceRoom = () => {
   const textContainerRef = useRef<HTMLDivElement>(null);
 
   const [gameData, setGameData] = useState<GameData | null>(null);
-  const [ready, setReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
   const updateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -269,17 +255,20 @@ const RaceRoom = () => {
     }
   }, [userInput]);
 
-  // Add effect to handle game state changes
+  // Update the game state effect
   useEffect(() => {
     if (!gameData) return;
+
+    // Reset local state when game returns to waiting
+    if (gameData.status === "waiting") {
+      resetGame();
+    }
 
     // Handle countdown
     if (gameData.status === "countdown" && gameData.countdownStartedAt) {
       const countdownDuration = 3; // 3 seconds countdown
-      const countdownEnd =
-        (gameData.countdownStartedAt as any).toMillis() +
-        countdownDuration * 1000;
-      setStartTime(countdownEnd); // Set start time to when countdown ends
+      const countdownEnd = (gameData.countdownStartedAt as any).toMillis() + countdownDuration * 1000;
+      setStartTime(countdownEnd);
       const timeLeft = Math.ceil((countdownEnd - Date.now()) / 1000);
 
       if (timeLeft > 0) {
@@ -290,7 +279,6 @@ const RaceRoom = () => {
 
           if (newTimeLeft <= 0) {
             clearInterval(timer);
-            // Start the race
             updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
               status: "racing",
               startTime: serverTimestamp(),
@@ -317,29 +305,25 @@ const RaceRoom = () => {
 
   const toggleReady = async () => {
     if (!username || !roomId) return;
-    const newReadyState = !ready;
-    setReady(newReadyState);
+    const newReadyState = !gameData?.players[username]?.ready;
     await updateDoc(doc(getFirestore(), "gameRooms", roomId), {
       [`players.${username}.ready`]: newReadyState,
     });
   };
 
-  // Reset charStats when game resets
   const resetGame = () => {
     setUserInput("");
     setStartTime(null);
     setWpm(0);
     setAccuracy(100);
     setIsFinished(false);
-    setCursorPosition({ x: 0, y: 0 });
     setWpmHistory([]);
     setCharStats({
       correct: 0,
       incorrect: 0,
       extra: 0,
-      missed: 0,
+      missed: 0
     });
-    if (updateTimeout.current) clearTimeout(updateTimeout.current);
   };
 
   return (
@@ -391,10 +375,10 @@ const RaceRoom = () => {
         <button
           onClick={toggleReady}
           className={`px-4 py-2 rounded ${
-            ready ? "bg-green-500" : "bg-yellow-500"
+            gameData.players[username]?.ready ? "bg-green-500" : "bg-yellow-500"
           }`}
         >
-          {ready ? "Ready!" : "Click when ready"}
+          {gameData.players[username]?.ready ? "Ready!" : "Click when ready"}
         </button>
       )}
 
@@ -480,6 +464,7 @@ const RaceRoom = () => {
               {Object.entries(gameData.players).map(([playerId, player]) => (
                 <div key={playerId}>
                   {player.name}: {player.wpm} WPM, {player.accuracy}% accuracy
+                  {player.wantsRematch && <span className="ml-2 text-green-500">(Wants Rematch)</span>}
                 </div>
               ))}
             </div>
@@ -492,6 +477,61 @@ const RaceRoom = () => {
             wpmHistory={wpmHistory}
             charStats={charStats}
           />
+
+          <button
+            onClick={async () => {
+              const db = getFirestore();
+              const roomRef = doc(db, "gameRooms", roomId!);
+              
+              // Update local gameData first to include initiator's rematch status
+              const updatedPlayers = {
+                ...gameData.players,
+                [username]: {
+                  ...gameData.players[username],
+                  wantsRematch: true
+                }
+              };
+
+              await updateDoc(roomRef, {
+                [`players.${username}.wantsRematch`]: true
+              });
+
+              // Check if all players want rematch using updated players
+              const allWantRematch = Object.values(updatedPlayers)
+                .filter((player) => (player as Player).connected)
+                .every((player) => (player as Player).wantsRematch);
+
+              if (allWantRematch) {
+                // Reset the game
+                await updateDoc(roomRef, {
+                  status: "waiting",
+                  startTime: null,
+                  countdownStartedAt: null,
+                  winner: null,
+                  "players": Object.fromEntries(
+                    Object.entries(updatedPlayers).map(([id, player]) => [
+                      id,
+                      {
+                        ...(player as Player),
+                        wpm: 0,
+                        accuracy: 100,
+                        progress: 0,
+                        ready: false,
+                        finished: false,
+                        wantsRematch: false
+                      }
+                    ])
+                  )
+                });
+
+                // Reset local state
+                resetGame();
+              }
+            }}
+            className="mt-8 px-6 py-3 bg-[#e2b714] text-[#323437] rounded-lg font-medium hover:bg-[#e2b714]/90 transition-colors"
+          >
+            Play Again
+          </button>
         </div>
       )}
     </div>

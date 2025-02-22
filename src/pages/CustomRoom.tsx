@@ -3,7 +3,6 @@ import { useUser } from "../contexts/UserContext";
 import { useState, useEffect } from "react";
 import {
   getFirestore,
-  collection,
   doc,
   setDoc,
   serverTimestamp,
