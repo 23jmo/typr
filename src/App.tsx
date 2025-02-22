@@ -58,6 +58,7 @@ const AppRoutes = () => {
         <Routes>
           <Route path="/signin" element={<Navigate to="/" />} />
           <Route path="/" element={<Home />} />
+          <Route path="/custom/:roomId" element={<CustomRoom />} />
           <Route path="/custom" element={<CustomRoom />} />
           <Route path="/ranked" element={<Ranked />} />
           <Route path="/solo" element={<Solo />} />
