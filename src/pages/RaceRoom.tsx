@@ -5,22 +5,10 @@ import {
   doc,
   onSnapshot,
   updateDoc,
-  deleteDoc,
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
-import {
-  getDatabase,
-  ref,
-  onValue,
-  set,
-  onDisconnect,
-} from "firebase/database";
-import { useUser } from "../contexts/UserContext";
 import StatsOverview from "../components/StatsOverview";
-import { GameResult } from "../types";
-import { auth, userService } from "../services/firebase";
-
 interface Player {
   connected?: boolean;
   joinedAt?: any;
@@ -43,9 +31,6 @@ interface GameData {
 
 const SAMPLE_TEXT =
   "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
-
-const cursorStyle =
-  "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse transition-transform duration-75";
 
 //TODO: add a graph of wpm and accuracy over time
 
@@ -324,23 +309,6 @@ const RaceRoom = () => {
     });
   };
 
-  // Reset charStats when game resets
-  const resetGame = () => {
-    setUserInput("");
-    setStartTime(null);
-    setWpm(0);
-    setAccuracy(100);
-    setIsFinished(false);
-    setCursorPosition({ x: 0, y: 0 });
-    setWpmHistory([]);
-    setCharStats({
-      correct: 0,
-      incorrect: 0,
-      extra: 0,
-      missed: 0,
-    });
-    if (updateTimeout.current) clearTimeout(updateTimeout.current);
-  };
 
   return (
     <div className="flex flex-col items-center min-h-screen p-4">
