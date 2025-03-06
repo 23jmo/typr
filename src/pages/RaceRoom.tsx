@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import {
   getFirestore,
   doc,
@@ -47,12 +47,13 @@ const SAMPLE_TEXT =
 const cursorStyle =
   "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse transition-transform duration-75";
 
-//TODO: add a graph of wpm and accuracy over time
-
 const RaceRoom = () => {
   const { roomId } = useParams();
   const location = useLocation();
-  const username = location.state?.username;
+  const navigate = useNavigate();
+  const { userData } = useUser();
+  const username = userData?.username || "Anonymous";
+  const userId = userData?.uid;
 
   const [text] = useState(SAMPLE_TEXT);
   const [userInput, setUserInput] = useState("");
@@ -82,9 +83,17 @@ const RaceRoom = () => {
     missed: 0,
   });
 
+  // Add a check to ensure user is logged in with a username
+  useEffect(() => {
+    if (!userData || !userData.username || !userData.uid) {
+      console.error("User not logged in or missing username/uid");
+      return;
+    }
+  }, [userData, navigate]);
+
   // Function to update player data
   const throttleUpdate = () => {
-    if (updateTimeout.current) return;
+    if (updateTimeout.current || !userId) return;
 
     updateTimeout.current = setTimeout(async () => {
       const db = getFirestore();
@@ -92,10 +101,10 @@ const RaceRoom = () => {
 
       try {
         await updateDoc(roomRef, {
-          [`players.${username}.progress`]:
+          [`players.${userId}.progress`]:
             (userInput.length / text.length) * 100,
-          [`players.${username}.wpm`]: wpm,
-          [`players.${username}.accuracy`]: accuracy,
+          [`players.${userId}.wpm`]: wpm,
+          [`players.${userId}.accuracy`]: accuracy,
           // Optionally, include other fields if necessary
         });
       } catch (error) {
@@ -108,7 +117,7 @@ const RaceRoom = () => {
 
   // Update the connection setup effect
   useEffect(() => {
-    if (!username || !roomId) return;
+    if (!userId || !roomId) return;
 
     const db = getFirestore();
     const roomRef = doc(db, "gameRooms", roomId);
@@ -123,7 +132,7 @@ const RaceRoom = () => {
 
         // Mark as connected
         await updateDoc(roomRef, {
-          [`players.${username}.connected`]: true,
+          [`players.${userId}.connected`]: true,
         });
 
         // Set up cleanup for tab close/refresh
@@ -137,7 +146,10 @@ const RaceRoom = () => {
 
     const unsubscribe = onSnapshot(roomRef, (snapshot) => {
       const data = snapshot.data() as GameData;
-      if (data) setGameData(data);
+      if (data) {
+        console.log("Game data updated:", data);
+        setGameData(data);
+      }
     });
 
     return () => {
@@ -145,17 +157,17 @@ const RaceRoom = () => {
       window.removeEventListener("beforeunload", handleDisconnect);
       handleDisconnect();
     };
-  }, [roomId, username]);
+  }, [roomId, userId]);
 
   // Update handleDisconnect function
   const handleDisconnect = async () => {
-    if (!username || !roomId) return;
+    if (!userId || !roomId) return;
 
     try {
       const db = getFirestore();
       const roomRef = doc(db, "gameRooms", roomId);
       await updateDoc(roomRef, {
-        [`players.${username}.connected`]: false,
+        [`players.${userId}.connected`]: false,
       });
     } catch (error) {
       console.error("Error handling disconnect:", error);
@@ -220,11 +232,11 @@ const RaceRoom = () => {
         if (newInput.length === text.length) {
           setIsFinished(true);
           // Update player's finished status immediately
-          if (username && roomId) {
+          if (userId && roomId) {
             const db = getFirestore();
             updateDoc(doc(db, "gameRooms", roomId), {
-              [`players.${username}.finished`]: true,
-              [`players.${username}.finishTime`]: serverTimestamp(),
+              [`players.${userId}.finished`]: true,
+              [`players.${userId}.finishTime`]: serverTimestamp(),
             }).catch(console.error);
           }
         }
@@ -250,7 +262,7 @@ const RaceRoom = () => {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [text, userInput, startTime, isFinished, username, roomId]);
+  }, [text, userInput, startTime, isFinished, userId, roomId]);
 
   // Update cursor position when input changes
   useEffect(() => {
@@ -307,21 +319,48 @@ const RaceRoom = () => {
     }
   }, [gameData]);
 
+  // Add effect to check if all players are ready and start countdown
+  useEffect(() => {
+    if (!gameData || !roomId || gameData.status !== "waiting") return;
+
+    // Check if all players are ready
+    const allPlayersReady = Object.values(gameData.players).every(
+      (player) => player.ready && player.connected
+    );
+
+    // If all players are ready, start the countdown
+    if (allPlayersReady) {
+      console.log("All players ready, starting countdown");
+      const db = getFirestore();
+      updateDoc(doc(db, "gameRooms", roomId), {
+        status: "countdown",
+        countdownStartedAt: serverTimestamp(),
+      }).catch((error) => {
+        console.error("Error starting countdown:", error);
+      });
+    }
+  }, [gameData, roomId]);
+
   // Update the progress effect with throttling
   useEffect(() => {
-    if (!username || !roomId || !gameData || gameData.status !== "racing")
-      return;
+    if (!userId || !roomId || !gameData || gameData.status !== "racing") return;
 
     throttleUpdate();
   }, [userInput, wpm, accuracy]);
 
   const toggleReady = async () => {
-    if (!username || !roomId) return;
+    if (!userId || !roomId) return;
     const newReadyState = !ready;
     setReady(newReadyState);
-    await updateDoc(doc(getFirestore(), "gameRooms", roomId), {
-      [`players.${username}.ready`]: newReadyState,
-    });
+
+    try {
+      console.log(`Setting player ${userId} ready state to ${newReadyState}`);
+      await updateDoc(doc(getFirestore(), "gameRooms", roomId), {
+        [`players.${userId}.ready`]: newReadyState,
+      });
+    } catch (error) {
+      console.error("Error toggling ready state:", error);
+    }
   };
 
   // Reset charStats when game resets
@@ -344,6 +383,12 @@ const RaceRoom = () => {
 
   return (
     <div className="flex flex-col items-center min-h-screen p-4">
+      {/* Debug info */}
+      <div className="fixed top-0 left-0 bg-black bg-opacity-50 p-2 text-xs text-white">
+        Username: {username}, UserID: {userId}, Room: {roomId}, Status:{" "}
+        {gameData?.status}
+      </div>
+
       <div className="fixed top-4 left-4 right-4">
         <div className="flex justify-between max-w-md mx-auto">
           <div className="text-xl">WPM: {wpm}</div>
