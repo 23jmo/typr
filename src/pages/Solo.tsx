@@ -29,6 +29,7 @@ const TypeText = ({
   onTextGenerated: (text: string) => void;
 }) => {
   useEffect(() => {
+
     const generateText = async () => {
       const text = await generateTextByTopic("random"); // Wait for text generation
       onTextGenerated(text); // Call the callback with the generated text
