@@ -1,4 +1,9 @@
 import React, { useState, useEffect } from "react";
+import { useUser } from "../../contexts/UserContext";
+import { useNavigate } from "react-router-dom";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "../../services/firebase";
+import { matchmakingService } from "../../services/firebase";
 
 const typingFacts = [
   "The QWERTY keyboard layout was designed to prevent typewriter jams by placing commonly used letter pairs far apart.",
@@ -16,9 +21,61 @@ const typingFacts = [
 ];
 
 const MatchmakingScreen = () => {
+  const { userData } = useUser();
+  const navigate = useNavigate();
   const [currentFactIndex, setCurrentFactIndex] = useState(0);
   const [searchTime, setSearchTime] = useState(0);
   const [isFactChanging, setIsFactChanging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userData) return;
+
+    let unsubscribeListener: (() => void) | null = null;
+
+    // Join queue
+    console.log("Joining queue");
+    const joinQueue = async () => {
+      try {
+        const existingGameId = await matchmakingService.joinQueue(
+          userData.uid,
+          userData
+        );
+
+        // If user is already in a game, redirect to that game
+        if (existingGameId) {
+          console.log(`User already in game ${existingGameId}, redirecting...`);
+          navigate(`/race/${existingGameId}`);
+          return;
+        }
+
+        // Listen for match
+        unsubscribeListener = onSnapshot(
+          doc(db, "users", userData.uid),
+          (snapshot) => {
+            const data = snapshot.data();
+            if (data?.currentGame) {
+              navigate(`/race/${data.currentGame}`);
+            }
+          }
+        );
+      } catch (error) {
+        console.error("Error joining queue:", error);
+        setError("Failed to join matchmaking queue. Please try again.");
+      }
+    };
+
+    joinQueue();
+
+    return () => {
+      if (unsubscribeListener) {
+        unsubscribeListener();
+      }
+      if (userData) {
+        matchmakingService.leaveQueue(userData.uid);
+      }
+    };
+  }, [userData, navigate]);
 
   useEffect(() => {
     // Rotate facts every 5 seconds
@@ -50,6 +107,19 @@ const MatchmakingScreen = () => {
 
   return (
     <div className="max-w-2xl mx-auto p-8 mt-20 text-center flex flex-col h-[calc(100vh-200px)]">
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-500 text-white p-4 rounded-lg mb-8">
+          {error}
+          <button
+            className="ml-4 underline"
+            onClick={() => navigate("/")}
+          >
+            Return to Home
+          </button>
+        </div>
+      )}
+
       {/* Main Matchmaking Section */}
       <div className="flex-grow flex flex-col items-center justify-center mb-8">
         {/* Loading Animation */}
@@ -91,7 +161,10 @@ const MatchmakingScreen = () => {
         {/* Cancel Button */}
         <button
           className="mt-8 px-8 py-3 bg-[#323437] text-[#d1d0c5] rounded-lg hover:bg-[#e2b714] hover:text-[#323437] transition-all duration-200 text-lg"
-          onClick={() => window.history.back()}
+          onClick={() => {
+            matchmakingService.leaveQueue(userData?.uid || "");
+            navigate("/");
+          }}
         >
           Cancel Queue
         </button>
