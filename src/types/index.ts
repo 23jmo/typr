@@ -14,6 +14,8 @@ interface UserStats {
       totalCharactersTyped: number
       totalMistakes: number
       totalTimePlayed: number
+      elo: number
+      peakElo: number
     }
     ranked: {
       gamesPlayed: number

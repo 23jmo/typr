@@ -98,6 +98,8 @@ export const userService = {
             totalCharactersTyped: 0,
             totalMistakes: 0,
             totalTimePlayed: 0,
+            elo: 1000, 
+            peakElo: 1000
           },
           ranked: {
             gamesPlayed: 0,
