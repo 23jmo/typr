@@ -14,6 +14,8 @@ import {
   orderBy,
   limit,
   deleteField,
+  increment,
+  arrayUnion,
 } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import {
@@ -88,6 +90,195 @@ export const authService = {
   signOut: () => auth.signOut(),
 };
 
+// User stats service for centralized stats management
+export const userStatsService = {
+  // Update overall stats (used by both solo and ranked modes)
+  updateOverallStats: async (
+    userId: string,
+    gameResult: {
+      wpm: number;
+      accuracy: number;
+      wordsTyped: number;
+      charactersTyped: number;
+      totalMistakes: number;
+      timePlayed: number;
+      gameId?: string;
+    }
+  ): Promise<void> => {
+    if (!userId) return;
+
+    try {
+      const userRef = doc(db, "users", userId);
+      const userDoc = await getDoc(userRef);
+      const userData = userDoc.data();
+
+      if (!userData) return;
+
+      // Check if this game has already been processed
+      if (
+        gameResult.gameId &&
+        userData.processedGames &&
+        userData.processedGames.includes(gameResult.gameId)
+      ) {
+        console.log("Game already processed in overall stats, skipping update");
+        return;
+      }
+
+      const currentStats = userData.stats.overall;
+      const newGamesPlayed = currentStats.gamesPlayed + 1;
+
+      // Calculate new average WPM
+      const newAverageWPM = Math.round(
+        (currentStats.averageWPM * currentStats.gamesPlayed + gameResult.wpm) /
+          newGamesPlayed
+      );
+
+      // Check if this is a new best WPM
+      const newBestWPM = Math.max(currentStats.bestWPM, gameResult.wpm);
+
+      // Update Firestore
+      await updateDoc(userRef, {
+        "stats.overall.gamesPlayed": increment(1),
+        "stats.overall.averageWPM": newAverageWPM,
+        "stats.overall.bestWPM": newBestWPM,
+        "stats.overall.totalWordsTyped": increment(gameResult.wordsTyped),
+        "stats.overall.totalCharactersTyped": increment(
+          gameResult.charactersTyped
+        ),
+        "stats.overall.totalMistakes": increment(gameResult.totalMistakes),
+        "stats.overall.totalTimePlayed": increment(gameResult.timePlayed),
+        ...(gameResult.gameId
+          ? { processedGames: arrayUnion(gameResult.gameId) }
+          : {}),
+      });
+
+      console.log("Successfully updated overall stats for user:", userId);
+    } catch (error) {
+      console.error("Error updating overall stats:", error);
+    }
+  },
+
+  // Update ranked-specific stats
+  updateRankedStats: async (
+    userId: string,
+    gameResult: {
+      wpm: number;
+      accuracy: number;
+      wordsTyped: number;
+      charactersTyped: number;
+      totalMistakes: number;
+      timePlayed: number;
+      isWinner: boolean;
+      gameId?: string;
+    }
+  ): Promise<void> => {
+    if (!userId) return;
+
+    try {
+      const userRef = doc(db, "users", userId);
+      const userDoc = await getDoc(userRef);
+      const userData = userDoc.data();
+
+      if (!userData) return;
+
+      // Check if this game has already been processed
+      if (
+        gameResult.gameId &&
+        userData.processedRankedGames &&
+        userData.processedRankedGames.includes(gameResult.gameId)
+      ) {
+        console.log("Game already processed in ranked stats, skipping update");
+        return;
+      }
+
+      const currentRankedStats = userData.stats.ranked;
+      const newGamesPlayed = currentRankedStats.gamesPlayed + 1;
+      const newWins =
+        currentRankedStats.totalWins + (gameResult.isWinner ? 1 : 0);
+      const newLosses =
+        currentRankedStats.totalLosses + (gameResult.isWinner ? 0 : 1);
+      const newWinRate = Math.round((newWins / newGamesPlayed) * 100);
+
+      // Calculate new average WPM
+      const totalWPM =
+        currentRankedStats.averageWPM * currentRankedStats.gamesPlayed;
+      const newAverageWPM = Math.round(
+        (totalWPM + gameResult.wpm) / newGamesPlayed
+      );
+
+      // Check if this is a new best WPM
+      const isNewBest = gameResult.wpm > currentRankedStats.bestWPM;
+      const newBestWPM = isNewBest
+        ? gameResult.wpm
+        : currentRankedStats.bestWPM;
+
+      // Update Firestore
+      await updateDoc(userRef, {
+        "stats.ranked.gamesPlayed": increment(1),
+        "stats.ranked.averageWPM": newAverageWPM,
+        "stats.ranked.bestWPM": newBestWPM,
+        "stats.ranked.totalWins": increment(gameResult.isWinner ? 1 : 0),
+        "stats.ranked.totalLosses": increment(gameResult.isWinner ? 0 : 1),
+        "stats.ranked.winRate": newWinRate,
+        "stats.ranked.totalWordsTyped": increment(gameResult.wordsTyped),
+        "stats.ranked.totalCharactersTyped": increment(
+          gameResult.charactersTyped
+        ),
+        "stats.ranked.totalMistakes": increment(gameResult.totalMistakes),
+        "stats.ranked.totalTimePlayed": increment(gameResult.timePlayed),
+        ...(gameResult.gameId
+          ? { processedRankedGames: arrayUnion(gameResult.gameId) }
+          : {}),
+      });
+
+      console.log("Successfully updated ranked stats for user:", userId);
+    } catch (error) {
+      console.error("Error updating ranked stats:", error);
+    }
+  },
+
+  // Main method to update all relevant stats based on game type
+  updateUserStats: async (
+    userId: string,
+    gameResult: {
+      wpm: number;
+      accuracy: number;
+      wordsTyped: number;
+      charactersTyped: number;
+      totalMistakes: number;
+      timePlayed: number;
+      isRanked?: boolean;
+      isWinner?: boolean;
+      gameId?: string;
+    }
+  ): Promise<void> => {
+    if (!userId) return;
+
+    try {
+      // Generate a gameId if one wasn't provided
+      const gameId =
+        gameResult.gameId ||
+        `game_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const gameResultWithId = { ...gameResult, gameId };
+
+      // Always update overall stats
+      await userStatsService.updateOverallStats(userId, gameResultWithId);
+
+      // If it's a ranked game, also update ranked stats
+      if (gameResult.isRanked && gameResult.isWinner !== undefined) {
+        await userStatsService.updateRankedStats(userId, {
+          ...gameResultWithId,
+          isWinner: gameResult.isWinner,
+        });
+      }
+
+      console.log("Successfully updated all stats for user:", userId);
+    } catch (error) {
+      console.error("Error updating user stats:", error);
+    }
+  },
+};
+
 export const userService = {
   // Create new user document
   createUser: async (userId: string, authData: any): Promise<void> => {
@@ -150,40 +341,19 @@ export const userService = {
     return docSnap.exists() ? (docSnap.data() as UserData) : null;
   },
 
-  // Update user stats after game
+  // Update user stats after game (legacy method, redirects to userStatsService)
   updateUserStats: async (
     userId: string,
     gameResult: GameResult
   ): Promise<void> => {
-    const userRef = doc(db, "users", userId);
-    const userData = await getDoc(userRef);
-    const currentData = userData.data() as UserData;
-
-    const newGamesPlayed = currentData.stats.overall.gamesPlayed + 1;
-    const newAverageWPM = Math.round(
-      (currentData.stats.overall.averageWPM *
-        currentData.stats.overall.gamesPlayed +
-        gameResult.wpm) /
-        newGamesPlayed
-    );
-    const newBestWPM = Math.max(
-      currentData.stats.overall.bestWPM,
-      gameResult.wpm
-    );
-
-    await updateDoc(userRef, {
-      "stats.overall.gamesPlayed": newGamesPlayed,
-      "stats.overall.averageWPM": newAverageWPM,
-      "stats.overall.bestWPM": newBestWPM,
-      "stats.overall.totalWordsTyped":
-        currentData.stats.overall.totalWordsTyped + gameResult.wordsTyped,
-      "stats.overall.totalCharactersTyped":
-        currentData.stats.overall.totalCharactersTyped +
-        gameResult.charactersTyped,
-      "stats.overall.totalMistakes":
-        currentData.stats.overall.totalMistakes + gameResult.totalMistakes,
-      "stats.overall.totalTimePlayed":
-        currentData.stats.overall.totalTimePlayed + gameResult.timePlayed,
+    await userStatsService.updateUserStats(userId, {
+      wpm: gameResult.wpm,
+      accuracy: gameResult.accuracy,
+      wordsTyped: gameResult.wordsTyped,
+      charactersTyped: gameResult.charactersTyped,
+      totalMistakes: gameResult.totalMistakes,
+      timePlayed: gameResult.timePlayed,
+      isRanked: false,
     });
   },
 

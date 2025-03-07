@@ -29,6 +29,16 @@ const SAMPLE_TEXT =
 const cursorStyle =
   "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse transition-transform duration-75";
 
+// Add ghost cursor colors
+const GHOST_CURSOR_COLORS = [
+  "bg-red-500",
+  "bg-blue-500",
+  "bg-purple-500",
+  "bg-pink-500",
+  "bg-indigo-500",
+  "bg-teal-500",
+];
+
 const RaceRoom = () => {
   const { roomId } = useParams();
   const location = useLocation();
@@ -64,6 +74,11 @@ const RaceRoom = () => {
     extra: 0,
     missed: 0,
   });
+
+  // Add state for opponent cursor positions
+  const [opponentCursors, setOpponentCursors] = useState<{
+    [playerId: string]: { position: number; color: string };
+  }>({});
 
   // Add a check to ensure user is logged in with a username
   useEffect(() => {
@@ -163,7 +178,12 @@ const RaceRoom = () => {
 
       if (isFinished) return;
 
-      // Ignore if any modifier keys are pressed
+      // Ignore if Alt+Delete/Backspace (handled by dedicated handler)
+      if ((e.key === "Delete" || e.key === "Backspace") && e.altKey) {
+        return;
+      }
+
+      // Ignore if any other modifier keys are pressed
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       // Only handle alphanumeric keys, space, and punctuation
@@ -363,6 +383,187 @@ const RaceRoom = () => {
     if (updateTimeout.current) clearTimeout(updateTimeout.current);
   };
 
+  // Add a dedicated handler for Alt+Delete/Backspace
+  useEffect(() => {
+    const handleAltDelete = (e: KeyboardEvent) => {
+      if (isFinished) return;
+
+      // Check for Alt+Delete or Alt+Backspace
+      if ((e.key === "Delete" || e.key === "Backspace") && e.altKey) {
+        console.log("Alt+Delete/Backspace dedicated handler triggered");
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Find the last word boundary
+        const lastSpaceIndex = userInput.lastIndexOf(" ");
+
+        if (lastSpaceIndex === -1) {
+          // No spaces, delete everything
+          const charsToDelete = userInput.length;
+
+          // Update character stats
+          setCharStats((prev) => {
+            const newStats = { ...prev };
+
+            // Count how many characters of each type we're deleting
+            for (let i = 0; i < charsToDelete; i++) {
+              const charIndex = i;
+
+              if (charIndex >= text.length) {
+                newStats.extra = Math.max(0, newStats.extra - 1);
+              } else if (userInput[charIndex] === text[charIndex]) {
+                newStats.correct = Math.max(0, newStats.correct - 1);
+              } else {
+                newStats.incorrect = Math.max(0, newStats.incorrect - 1);
+              }
+            }
+
+            return newStats;
+          });
+
+          setUserInput("");
+        } else {
+          // Delete from the last space to the end
+          const charsToDelete = userInput.length - lastSpaceIndex;
+
+          // Update character stats
+          setCharStats((prev) => {
+            const newStats = { ...prev };
+
+            // Count how many characters of each type we're deleting
+            for (let i = 0; i < charsToDelete; i++) {
+              const charIndex = lastSpaceIndex + 1 + i;
+
+              if (charIndex >= text.length) {
+                newStats.extra = Math.max(0, newStats.extra - 1);
+              } else if (userInput[charIndex] === text[charIndex]) {
+                newStats.correct = Math.max(0, newStats.correct - 1);
+              } else {
+                newStats.incorrect = Math.max(0, newStats.incorrect - 1);
+              }
+            }
+
+            return newStats;
+          });
+
+          setUserInput((prev) => prev.substring(0, lastSpaceIndex + 1));
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleAltDelete, true); // Use capture phase
+    return () => window.removeEventListener("keydown", handleAltDelete, true);
+  }, [userInput, isFinished, text]);
+
+  // Update character stats when userInput changes
+  useEffect(() => {
+    // Calculate accuracy based on current stats
+    const totalChars =
+      charStats.correct + charStats.incorrect + charStats.extra;
+    setAccuracy(Math.round((charStats.correct / totalChars) * 100) || 100);
+
+    // Calculate WPM
+    if (startTime) {
+      const timeElapsed = (Date.now() - startTime) / 1000 / 60;
+      const wordsTyped = userInput.length / 5;
+      const currentWpm = Math.round(wordsTyped / timeElapsed) || 0;
+      setWpm(currentWpm);
+    }
+  }, [userInput, charStats, startTime]);
+
+  // Function to get cursor coordinates for a specific position in the text
+  const getCursorCoordinates = (
+    position: number
+  ): { x: number; y: number } | null => {
+    if (!textContainerRef.current) return null;
+
+    // Get all character spans (including spaces)
+    const chars = Array.from(
+      textContainerRef.current.querySelectorAll("span > span")
+    );
+
+    if (!chars.length) return null;
+
+    // Ensure position is within bounds
+    const safePosition = Math.min(position, chars.length - 1);
+    if (safePosition < 0) return null;
+
+    // Get the DOM element at the calculated position
+    const char = chars[safePosition];
+    if (!char) return null;
+
+    const rect = char.getBoundingClientRect();
+    const containerRect = textContainerRef.current.getBoundingClientRect();
+
+    return {
+      x: rect.left - containerRect.left,
+      y: rect.top - containerRect.top,
+    };
+  };
+
+  // Calculate opponent cursor positions based on their progress
+  useEffect(() => {
+    if (!gameData || !text) return;
+
+    const newOpponentCursors: {
+      [playerId: string]: { position: number; color: string };
+    } = {};
+    let colorIndex = 0;
+
+    Object.entries(gameData.players).forEach(([playerId, player]) => {
+      // Skip the current user
+      if (playerId === userId) return;
+
+      // Calculate the character position based on progress percentage
+      const characterPosition = Math.floor(
+        ((player.progress || 0) / 100) * text.length
+      );
+
+      // Map the character position to the DOM position
+      // This accounts for the way the text is rendered with separate spans for each character and spaces
+      let domPosition = 0;
+      let charCount = 0;
+      const words = text.split(" ");
+
+      // Count characters including spaces until we reach or exceed the target position
+      for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+        const word = words[wordIndex];
+
+        // Check if adding this word (and the following space) would exceed our target position
+        if (charCount + word.length > characterPosition) {
+          // The target position is within this word
+          domPosition += characterPosition - charCount;
+          break;
+        }
+
+        // Add this word's length to our character count
+        charCount += word.length;
+        domPosition += word.length;
+
+        // Add a space after the word (except for the last word)
+        if (wordIndex < words.length - 1) {
+          charCount += 1;
+          domPosition += 1;
+        }
+
+        // If we've exactly reached our target, break
+        if (charCount === characterPosition) {
+          break;
+        }
+      }
+
+      // Assign a color from the array
+      const color =
+        GHOST_CURSOR_COLORS[colorIndex % GHOST_CURSOR_COLORS.length];
+      colorIndex++;
+
+      // Store the DOM position (not the character position)
+      newOpponentCursors[playerId] = { position: domPosition, color };
+    });
+
+    setOpponentCursors(newOpponentCursors);
+  }, [gameData, text, userId]);
+
   return (
     <div className="flex flex-col items-center min-h-screen p-4">
       {/* Debug info */}
@@ -436,15 +637,54 @@ const RaceRoom = () => {
             ref={textContainerRef}
             className="text-4xl leading-relaxed font-mono relative flex flex-wrap select-none"
           >
+            {/* User cursor */}
             {!isFinished && (
               <span
-                className="absolute w-0.5 h-[1.1em] bg-[#d1d0c5] top-[0.1em] animate-pulse transition-all duration-75 left-0"
+                className="absolute w-0.5 h-[1.1em] bg-[#d1d0c5] top-[0.1em] animate-pulse transition-all duration-75 left-0 z-10"
                 style={{
                   transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px)`,
                 }}
               />
             )}
 
+            {/* Ghost cursors for opponents */}
+            {Object.entries(opponentCursors).map(
+              ([playerId, { position, color }]) => {
+                const coords = getCursorCoordinates(position);
+                if (!coords) return null;
+
+                const playerName =
+                  gameData?.players[playerId]?.name || "Opponent";
+
+                return (
+                  <div
+                    key={`ghost-${playerId}`}
+                    className="absolute z-0"
+                    style={{
+                      transform: `translate(${coords.x}px, ${coords.y}px)`,
+                      transition: "transform 0.5s ease-out",
+                    }}
+                  >
+                    {/* Ghost cursor */}
+                    <span
+                      className={`absolute w-0.5 h-[1.1em] ${color} opacity-70 top-[0.1em]`}
+                    />
+
+                    {/* Player name tooltip */}
+                    <span
+                      className={`absolute top-[-1.5em] left-[-1em] text-xs ${color.replace(
+                        "bg-",
+                        "text-"
+                      )} whitespace-nowrap`}
+                    >
+                      {playerName}
+                    </span>
+                  </div>
+                );
+              }
+            )}
+
+            {/* Text content */}
             {text.split(" ").map((word, wordIndex, wordArray) => {
               const previousWordsLength = wordArray
                 .slice(0, wordIndex)

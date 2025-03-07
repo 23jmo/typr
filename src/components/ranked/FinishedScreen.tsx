@@ -9,9 +9,12 @@ import {
   FaChartLine,
   FaArrowUp,
   FaArrowDown,
+  FaHistory,
+  FaFire,
 } from "react-icons/fa";
 import { rankedIcons } from "../../types/ranks";
 import "./FinishedScreen.css";
+import { userStatsService } from "../../services/firebase";
 
 interface RankedGameData extends GameData {
   ranked: true;
@@ -32,6 +35,15 @@ interface FinishedScreenProps {
   };
 }
 
+interface StatsUpdate {
+  gamesPlayed: number;
+  wpmChange: number;
+  bestWPM: number;
+  isNewBest: boolean;
+  winLoss: "win" | "loss";
+  winRate: number;
+}
+
 const FinishedScreen = ({
   gameData,
   wpm,
@@ -40,10 +52,14 @@ const FinishedScreen = ({
   wpmHistory,
   charStats,
 }: FinishedScreenProps) => {
-  const { userData } = useUser();
+  const { userData, refreshUserData } = useUser();
   const userId = userData?.uid;
   const navigate = useNavigate();
   const isWinner = gameData.winner === userId;
+
+  // Stats update tracking
+  const [statsUpdated, setStatsUpdated] = useState(false);
+  const [statsUpdate, setStatsUpdate] = useState<StatsUpdate | null>(null);
 
   // Calculate real ELO change based on the game data
   const [eloChange, setEloChange] = useState<number>(0);
@@ -52,6 +68,52 @@ const FinishedScreen = ({
   );
   const [newElo, setNewElo] = useState<number>(currentElo);
 
+  // Update user stats after the game
+  useEffect(() => {
+    const updateStats = async () => {
+      if (!userId || statsUpdated || !gameData) return;
+
+      // Calculate characters and words typed
+      const wordsTyped = Math.round(wpm * ((Date.now() - startTime) / 60000));
+      const charactersTyped = charStats.correct + charStats.incorrect;
+      const totalMistakes =
+        charStats.incorrect + charStats.missed + charStats.extra;
+      const timePlayed = Math.round((Date.now() - startTime) / 1000);
+
+      // Get the gameId from the URL or gameData
+      const gameId = window.location.pathname.split("/").pop() || "";
+
+      // Use the centralized service to update stats
+      await userStatsService.updateUserStats(userId, {
+        wpm,
+        accuracy,
+        wordsTyped,
+        charactersTyped,
+        totalMistakes,
+        timePlayed,
+        isRanked: true,
+        isWinner,
+        gameId,
+      });
+
+      setStatsUpdated(true);
+      refreshUserData();
+    };
+
+    updateStats();
+  }, [
+    userId,
+    gameData,
+    wpm,
+    accuracy,
+    charStats,
+    startTime,
+    isWinner,
+    statsUpdated,
+    refreshUserData,
+  ]);
+
+  // Calculate ELO change
   useEffect(() => {
     // Check if this is a ranked game
     const isRanked =
