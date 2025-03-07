@@ -5,23 +5,16 @@ import {
   doc,
   onSnapshot,
   updateDoc,
-  deleteDoc,
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
-import {
-  getDatabase,
-  ref,
-  onValue,
-  set,
-  onDisconnect,
-} from "firebase/database";
-import { useUser } from "../contexts/UserContext";
 import StatsOverview from "../components/StatsOverview";
+
 import { GameResult } from "../types";
 import { auth, userService } from "../services/firebase";
 import FinishedScreen from "../components/ranked/FinishedScreen";
 import { GameData, Player } from "../types";
+
 
 const SAMPLE_TEXT =
   "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
@@ -38,6 +31,7 @@ const GHOST_CURSOR_COLORS = [
   "bg-indigo-500",
   "bg-teal-500",
 ];
+
 
 const RaceRoom = () => {
   const { roomId } = useParams();
@@ -57,7 +51,6 @@ const RaceRoom = () => {
   const textContainerRef = useRef<HTMLDivElement>(null);
 
   const [gameData, setGameData] = useState<GameData | null>(null);
-  const [ready, setReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
   const updateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -324,17 +317,20 @@ const RaceRoom = () => {
     }
   }, [userInput]);
 
-  // Add effect to handle game state changes
+  // Update the game state effect
   useEffect(() => {
     if (!gameData) return;
+
+    // Reset local state when game returns to waiting
+    if (gameData.status === "waiting") {
+      resetGame();
+    }
 
     // Handle countdown
     if (gameData.status === "countdown" && gameData.countdownStartedAt) {
       const countdownDuration = 3; // 3 seconds countdown
-      const countdownEnd =
-        (gameData.countdownStartedAt as any).toMillis() +
-        countdownDuration * 1000;
-      setStartTime(countdownEnd); // Set start time to when countdown ends
+      const countdownEnd = (gameData.countdownStartedAt as any).toMillis() + countdownDuration * 1000;
+      setStartTime(countdownEnd);
       const timeLeft = Math.ceil((countdownEnd - Date.now()) / 1000);
 
       if (timeLeft > 0) {
@@ -345,7 +341,6 @@ const RaceRoom = () => {
 
           if (newTimeLeft <= 0) {
             clearInterval(timer);
-            // Start the race
             updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
               status: "racing",
               startTime: serverTimestamp(),
@@ -392,6 +387,7 @@ const RaceRoom = () => {
   }, [userInput, wpm, accuracy]);
 
   const toggleReady = async () => {
+
     if (!userId || !roomId) return;
     const newReadyState = !ready;
     setReady(newReadyState);
@@ -404,24 +400,22 @@ const RaceRoom = () => {
     } catch (error) {
       console.error("Error toggling ready state:", error);
     }
+
   };
 
-  // Reset charStats when game resets
   const resetGame = () => {
     setUserInput("");
     setStartTime(null);
     setWpm(0);
     setAccuracy(100);
     setIsFinished(false);
-    setCursorPosition({ x: 0, y: 0 });
     setWpmHistory([]);
     setCharStats({
       correct: 0,
       incorrect: 0,
       extra: 0,
-      missed: 0,
+      missed: 0
     });
-    if (updateTimeout.current) clearTimeout(updateTimeout.current);
   };
 
   // Add a dedicated handler for Alt+Delete/Backspace
@@ -660,10 +654,10 @@ const RaceRoom = () => {
         <button
           onClick={toggleReady}
           className={`px-4 py-2 rounded ${
-            ready ? "bg-green-500" : "bg-yellow-500"
+            gameData.players[username]?.ready ? "bg-green-500" : "bg-yellow-500"
           }`}
         >
-          {ready ? "Ready!" : "Click when ready"}
+          {gameData.players[username]?.ready ? "Ready!" : "Click when ready"}
         </button>
       )}
 
@@ -785,6 +779,7 @@ const RaceRoom = () => {
           wpmHistory={wpmHistory}
           charStats={charStats}
         />
+
       )}
     </div>
   );
