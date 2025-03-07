@@ -114,12 +114,19 @@ const RaceRoom = () => {
 
   // Update the connection setup effect
   useEffect(() => {
-    if (!userId || !roomId) return;
+    if (!roomId || !userId) return;
 
     const db = getFirestore();
     const roomRef = doc(db, "gameRooms", roomId);
 
     const setupPresence = async () => {
+      // Wait for userData to be available
+      if (!userData) {
+        console.log("[Race Room]: Waiting for user data...");
+        // We'll handle this in the userData dependency below
+        return;
+      }
+
       try {
         const roomDoc = await getDoc(roomRef);
         if (!roomDoc.exists()) {
@@ -127,10 +134,44 @@ const RaceRoom = () => {
           return;
         }
 
-        // Mark as connected
-        await updateDoc(roomRef, {
-          [`players.${userId}.connected`]: true,
-        });
+        const roomData = roomDoc.data() as GameData;
+
+        // Check if the player already exists in the room
+        if (roomData.players && roomData.players[userId]) {
+          // Player exists, just update connected status
+          console.log(
+            "[Race Room]: Updating existing player connection status"
+          );
+          await updateDoc(roomRef, {
+            [`players.${userId}.connected`]: true,
+            [`players.${userId}.name`]: username,
+            [`players.${userId}.wpm`]: 0,
+            [`players.${userId}.accuracy`]: 100,
+            [`players.${userId}.progress`]: 0,
+            [`players.${userId}.ready`]: false,
+            [`players.${userId}.connected`]: true,
+            [`players.${userId}.finished`]: false,
+            [`players.${userId}.joinedAt`]: serverTimestamp(),
+          });
+        } else {
+          // Player doesn't exist, this shouldn't happen normally as they should be added in CustomRoom.tsx
+          // But as a fallback, add them to the room with default values
+          console.log("[Race Room]: Player not found in room, adding player");
+          const username = userData?.username || "Anonymous";
+          console.log("[Race Room]: Using username:", username);
+          await updateDoc(roomRef, {
+            [`players.${userId}`]: {
+              name: username,
+              wpm: 0,
+              accuracy: 100,
+              progress: 0,
+              ready: false,
+              connected: true,
+              finished: false,
+              joinedAt: serverTimestamp(),
+            },
+          });
+        }
 
         // Set up cleanup for tab close/refresh
         window.addEventListener("beforeunload", handleDisconnect);
@@ -154,7 +195,7 @@ const RaceRoom = () => {
       window.removeEventListener("beforeunload", handleDisconnect);
       handleDisconnect();
     };
-  }, [roomId, userId]);
+  }, [roomId, userId, userData]);
 
   // Update handleDisconnect function
   const handleDisconnect = async () => {
