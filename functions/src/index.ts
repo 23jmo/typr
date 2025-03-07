@@ -28,7 +28,7 @@ interface GameData {
   status: "waiting" | "countdown" | "racing" | "finished";
   text: string;
   startTime?: admin.firestore.Timestamp | number;
-  countdownStartedAt?: admin.firestore.Timestamp;
+  countdownStartedAt?: admin.firestore.Timestamp | admin.firestore.FieldValue;
   createdAt?: admin.firestore.Timestamp | admin.firestore.FieldValue;
   winner?: string;
   timeLimit: number; // in seconds
@@ -303,11 +303,23 @@ export const handleRankedQueueUpdate = onDocumentCreated(
       logger.error("Error in matchmaking:", error);
       // Reset player status if there was an error
       try {
-        await admin
+        // Check if document exists before updating
+        const queueDocRef = admin
           .firestore()
           .collection("rankedQueue")
-          .doc(queueData.userId)
-          .update({ status: "searching" });
+          .doc(queueData.userId);
+        const queueDoc = await queueDocRef.get();
+
+        if (queueDoc.exists) {
+          await queueDocRef.update({ status: "searching" });
+          logger.info(
+            `Reset status to searching for player ${queueData.userId}`
+          );
+        } else {
+          logger.info(
+            `Queue document for ${queueData.userId} no longer exists, skipping status reset`
+          );
+        }
       } catch (resetError) {
         logger.error("Error resetting player status:", resetError);
       }
@@ -390,6 +402,8 @@ export const handleRankedGameComplete = onDocumentUpdated(
           admin.firestore.FieldValue.increment(eloChange),
         "stats.overall.totalWins": admin.firestore.FieldValue.increment(1),
         "stats.overall.winRate": admin.firestore.FieldValue.increment(1),
+        currentGame: admin.firestore.FieldValue.delete(), // Clear currentGame reference
+        "matchmaking.status": "idle", // Reset matchmaking status
       });
 
       // Update loser stats
@@ -398,11 +412,13 @@ export const handleRankedGameComplete = onDocumentUpdated(
         "stats.overall.elo": admin.firestore.FieldValue.increment(-eloChange),
         "stats.overall.totalLosses": admin.firestore.FieldValue.increment(1),
         "stats.overall.winRate": admin.firestore.FieldValue.increment(-1),
+        currentGame: admin.firestore.FieldValue.delete(), // Clear currentGame reference
+        "matchmaking.status": "idle", // Reset matchmaking status
       });
 
       await batch.commit();
 
-      logger.info("Updated ELO ratings:", {
+      logger.info("Updated ELO ratings and cleared game references:", {
         winner,
         loser,
         eloChange,
@@ -454,17 +470,18 @@ async function createRankedMatch(player1: RankedQueue, player2: RankedQueue) {
           [player1.userId]: {
             name: player1.username,
             connected: false,
-            ready: false,
+            ready: true,
             elo: player1.elo,
           },
           [player2.userId]: {
             name: player2.username,
             connected: false,
-            ready: false,
+            ready: true,
             elo: player2.elo,
           },
         },
-        status: "waiting",
+        status: "countdown",
+        countdownStartedAt: admin.firestore.FieldValue.serverTimestamp(),
         ranked: true,
         text: randomText || "The quick brown fox jumps over the lazy dog.",
         timeLimit: 60,
@@ -486,6 +503,7 @@ async function createRankedMatch(player1: RankedQueue, player2: RankedQueue) {
           elo: player2.elo,
         },
         initialElo: gameData.initialElo,
+        status: gameData.status,
       });
 
       // Set the game room data
@@ -513,6 +531,7 @@ async function createRankedMatch(player1: RankedQueue, player2: RankedQueue) {
       gameId,
       player1: player1.userId,
       player2: player2.userId,
+      status: "countdown",
     });
 
     return gameId;
@@ -522,30 +541,42 @@ async function createRankedMatch(player1: RankedQueue, player2: RankedQueue) {
     // Try to reset players' status in the queue if the match creation failed
     try {
       const batch = db.batch();
+      let updateCount = 0;
 
       // Check if players are still in the queue
-      const player1Doc = await db
-        .collection("rankedQueue")
-        .doc(player1.userId)
-        .get();
-      const player2Doc = await db
-        .collection("rankedQueue")
-        .doc(player2.userId)
-        .get();
+      const player1DocRef = db.collection("rankedQueue").doc(player1.userId);
+      const player1Doc = await player1DocRef.get();
+
+      const player2DocRef = db.collection("rankedQueue").doc(player2.userId);
+      const player2Doc = await player2DocRef.get();
 
       if (player1Doc.exists) {
-        batch.update(db.collection("rankedQueue").doc(player1.userId), {
+        batch.update(player1DocRef, {
           status: "searching",
         });
+        updateCount++;
+      } else {
+        logger.info(
+          `Queue document for ${player1.userId} no longer exists, skipping status reset`
+        );
       }
 
       if (player2Doc.exists) {
-        batch.update(db.collection("rankedQueue").doc(player2.userId), {
+        batch.update(player2DocRef, {
           status: "searching",
         });
+        updateCount++;
+      } else {
+        logger.info(
+          `Queue document for ${player2.userId} no longer exists, skipping status reset`
+        );
       }
 
-      await batch.commit();
+      // Only commit if there are updates to make
+      if (updateCount > 0) {
+        await batch.commit();
+        logger.info(`Reset status to searching for ${updateCount} player(s)`);
+      }
     } catch (resetError) {
       logger.error("Error resetting players' status:", resetError);
     }

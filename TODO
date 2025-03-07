@@ -11,6 +11,9 @@ Fixes:
 
 Ranked: 
 
+  ☐ Current issues:
+    ☐ win rate wrong
+     ☐ rank is not calcualted right 
   Collections - waiting room 
   Matchmaking algorithm based on elo sends two players to a room 
   Add elo option for custom games

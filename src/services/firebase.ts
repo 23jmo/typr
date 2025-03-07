@@ -13,6 +13,7 @@ import {
   FieldValue,
   orderBy,
   limit,
+  deleteField,
 } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import {
@@ -322,9 +323,43 @@ export const matchmakingService = {
     try {
       // Check if user is already in a game
       if (userData.currentGame) {
-        console.log("[Matchmaking] User already in a game, cannot join queue");
-        // Redirect to the current game
-        return userData.currentGame;
+        console.log(
+          "[Matchmaking] User has currentGame reference:",
+          userData.currentGame
+        );
+
+        // Check if the game still exists and is not finished
+        const gameDoc = await getDoc(
+          doc(db, "gameRooms", userData.currentGame)
+        );
+
+        if (gameDoc.exists()) {
+          const gameData = gameDoc.data();
+
+          // Only redirect if the game is still active (not finished)
+          if (gameData.status !== "finished") {
+            console.log("[Matchmaking] User is in an active game, redirecting");
+            return userData.currentGame;
+          } else {
+            console.log(
+              "[Matchmaking] User's game is finished, cleaning up reference"
+            );
+            // Clean up the stale game reference
+            await updateDoc(doc(db, "users", userId), {
+              currentGame: deleteField(),
+              "matchmaking.status": "idle",
+            });
+          }
+        } else {
+          console.log(
+            "[Matchmaking] User's game no longer exists, cleaning up reference"
+          );
+          // Game doesn't exist anymore, clean up the reference
+          await updateDoc(doc(db, "users", userId), {
+            currentGame: deleteField(),
+            "matchmaking.status": "idle",
+          });
+        }
       }
 
       // Check if user is already in queue
