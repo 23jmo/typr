@@ -147,7 +147,7 @@ const RaceRoom = () => {
     const unsubscribe = onSnapshot(roomRef, (snapshot) => {
       const data = snapshot.data() as GameData;
       if (data) {
-        console.log("Game data updated:", data);
+        console.log("[Race Room]: Game data updated:", data);
         setGameData(data);
       }
     });

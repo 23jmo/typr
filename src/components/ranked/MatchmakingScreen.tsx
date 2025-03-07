@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useUser } from "../../contexts/UserContext";
 import { useNavigate } from "react-router-dom";
-import { doc, onSnapshot } from "firebase/firestore";
+import {
+  doc,
+  onSnapshot,
+  getDoc,
+  updateDoc,
+  deleteField,
+} from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { matchmakingService } from "../../services/firebase";
 
@@ -42,7 +48,7 @@ const MatchmakingScreen = () => {
           userData
         );
 
-        // If user is already in a game, redirect to that game
+        // If user is already in a game, redirect to that game (only if the game is not finished)
         if (existingGameId) {
           console.log(`User already in game ${existingGameId}, redirecting...`);
           navigate(`/race/${existingGameId}`);
@@ -52,10 +58,49 @@ const MatchmakingScreen = () => {
         // Listen for match
         unsubscribeListener = onSnapshot(
           doc(db, "users", userData.uid),
-          (snapshot) => {
+          async (snapshot) => {
             const data = snapshot.data();
             if (data?.currentGame) {
-              navigate(`/race/${data.currentGame}`);
+              console.log(
+                `[MatchmakingScreen] User has currentGame: ${data.currentGame}, checking status...`
+              );
+
+              // Check if the game is finished before redirecting
+              const gameDoc = await getDoc(
+                doc(db, "gameRooms", data.currentGame)
+              );
+
+              if (gameDoc.exists()) {
+                const gameData = gameDoc.data();
+                console.log(
+                  `[MatchmakingScreen] Game exists, status: ${gameData.status}`
+                );
+
+                if (gameData.status !== "finished") {
+                  console.log(
+                    `[MatchmakingScreen] Game is active, redirecting...`
+                  );
+                  navigate(`/race/${data.currentGame}`);
+                } else {
+                  console.log(
+                    `[MatchmakingScreen] Game is finished, cleaning up reference...`
+                  );
+                  // Game is finished, clean up the reference
+                  await updateDoc(doc(db, "users", userData.uid), {
+                    currentGame: deleteField(),
+                    "matchmaking.status": "idle",
+                  });
+                }
+              } else {
+                console.log(
+                  `[MatchmakingScreen] Game doesn't exist, cleaning up reference...`
+                );
+                // Game doesn't exist, clean up the reference
+                await updateDoc(doc(db, "users", userData.uid), {
+                  currentGame: deleteField(),
+                  "matchmaking.status": "idle",
+                });
+              }
             }
           }
         );
