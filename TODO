@@ -1,9 +1,29 @@
 
 Features:
   ☐ Add loading screen for loading user data 
+  ☐ Add COD 'map vote' style voting for race category for custom room 
 
 Fixes:
-  ☐ Fix the graph 
-    ☐ stop it from generating points at infinity (div by 0)
-    ☐ character data is also wrong
-    ☐ fix the graphics too 
+  ✔ Fix the graph @done(25-02-22 16:30)
+    ✔ stop it from generating points at infinity (div by 0) @done(25-02-22 16:30)
+    ✔ character data is also wrong @done(25-02-22 16:30)
+    ✔ fix the graphics too @done(25-02-22 16:30)
+
+General: 
+☐ Enable alt-delete, cmd+delete 
+☐ Glitch with typing during the countdown 
+
+Ranked: 
+
+  ☐ Current issues:
+    ✔ win rate wrong @done(25-03-07 16:23)
+     ✔ rank is not calcualted right @done(25-03-07 16:23)
+  Collections - waiting room 
+  Matchmaking algorithm based on elo sends two players to a room 
+  Add elo option for custom games
+
+  ✔ custom set of cloud functions for handling ranked states @done(25-03-07 16:23)
+
+
+  
+

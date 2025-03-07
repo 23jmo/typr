@@ -9,6 +9,7 @@ import {
   getDoc,
   updateDoc,
 } from "firebase/firestore";
+import { auth } from "../services/firebase";
 
 //TODO: move all firebase function to the @firebase.ts file
 
@@ -39,7 +40,12 @@ const CustomRoom = () => {
 
   const createGame = async () => {
     const username = tempUsername || userData?.username;
-    if (!username) return;
+    const userId = auth.currentUser?.uid;
+
+    if (!username || !userId) {
+      alert("You must be logged in to create a game");
+      return;
+    }
 
     try {
       const db = getFirestore();
@@ -53,7 +59,8 @@ const CustomRoom = () => {
         createdAt: serverTimestamp(),
         timeLimit: 60,
         players: {
-          [username]: {
+          // Use userId as the key instead of username
+          [userId]: {
             name: username,
             wpm: 0,
             accuracy: 100,
@@ -66,12 +73,9 @@ const CustomRoom = () => {
         },
         text: "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.",
       });
+      console.log("Game room created successfully:", roomId);
+      navigate(`/race/${roomId}`);
 
-      // Create shareable link
-      const shareableLink = `${window.location.origin}/custom/${roomId}`;
-      console.log("Shareable link:", shareableLink);
-      
-      navigate(`/race/${roomId}`, { state: { username } });
     } catch (error) {
       console.error("Error creating game room:", error);
     }
@@ -79,8 +83,13 @@ const CustomRoom = () => {
 
   const joinGame = async (targetRoomId?: string) => {
     const username = tempUsername || userData?.username;
-    const roomToJoin = targetRoomId || roomId;
-    if (!username || !roomToJoin) return;
+
+    const userId = auth.currentUser?.uid;
+
+    if (!username || !userId || !roomId) {
+      alert("You must be logged in and provide a room ID to join a game");
+      return;
+    }
 
     try {
       const db = getFirestore();
@@ -98,9 +107,9 @@ const CustomRoom = () => {
         return;
       }
 
-      // Add player to room
+      // Add player to room using userId as the key
       await updateDoc(roomRef, {
-        [`players.${username}`]: {
+        [`players.${userId}`]: {
           name: username,
           wpm: 0,
           accuracy: 100,
@@ -112,8 +121,10 @@ const CustomRoom = () => {
         },
       });
 
-      console.log("Joined game room:", roomToJoin);
-      navigate(`/race/${roomToJoin}`, { state: { username } });
+
+      console.log("Joined game room:", roomId);
+      navigate(`/race/${roomId}`);
+      
     } catch (error) {
       console.error("Error joining game:", error);
       alert("Error joining game");

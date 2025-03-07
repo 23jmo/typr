@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import StatsOverview from "../components/StatsOverview";
 import { GameResult } from "../types";
-import { auth, userService } from "../services/firebase";
+import { auth } from "../services/firebase";
+import { userStatsService } from "../services/firebase";
 import { generateTextByTopic } from "../utilities/random-text";
 
 
@@ -178,7 +179,12 @@ const Solo = () => {
 
   useEffect(() => {
     if (isFinished) {
-      const gameResult: GameResult = {
+      // Generate a unique gameId for solo games
+      const gameId = `solo_${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(2, 9)}`;
+
+      const gameResult = {
         wpm,
         accuracy,
         timestamp: new Date().toISOString(),
@@ -193,7 +199,17 @@ const Solo = () => {
         totalTimePlayed: Date.now() - (startTime || Date.now()),
       };
       if (auth.currentUser?.uid) {
-        userService.updateUserStats(auth.currentUser?.uid, gameResult);
+        // Use the centralized service to update stats
+        userStatsService.updateUserStats(auth.currentUser.uid, {
+          wpm,
+          accuracy,
+          wordsTyped: userInput.length,
+          charactersTyped: userInput.length,
+          totalMistakes: userInput.length - accuracy,
+          timePlayed: Date.now() - (startTime || Date.now()),
+          isRanked: false,
+          gameId,
+        });
       }
       console.log("Race finished, final WPM history:", wpmHistory);
     }
