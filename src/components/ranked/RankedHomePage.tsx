@@ -11,8 +11,9 @@ const RankedHomePage = ({ onMatchmakingStarted }: RankedHomePageProps) => {
   const currentRank =
     Object.values(rankedIcons).find(
       (rank) =>
-        (userData?.stats?.overall?.averageWPM || 0) >= rank.minWPM &&
-        (userData?.stats?.overall?.averageWPM || 0) <= rank.maxWPM
+        userData?.stats?.overall?.elo &&
+        userData?.stats?.overall?.elo >= rank.minElo &&
+        userData?.stats?.overall?.elo <= rank.maxElo
     ) || rankedIcons.plastic;
 
   return (
@@ -85,9 +86,28 @@ const RankedHomePage = ({ onMatchmakingStarted }: RankedHomePageProps) => {
           </p>
         </div>
         <div className="bg-[#2c2e31] rounded-lg p-6 text-center">
+          <h3 className="text-[#646669] text-sm mb-2">Record</h3>
+          <p className="text-2xl text-[#d1d0c5]">
+            <span className="text-[#00a81f]">
+              {userData?.stats?.overall?.totalWins || 0}W -{" "}
+            </span>
+            <span className="text-[#e21414]">
+              {userData?.stats?.overall?.totalLosses || 0}L -{" "}
+            </span>
+            <span className="text-[#fffae8]">
+              {userData?.stats?.overall?.totalTies || 0}T
+            </span>
+          </p>
+        </div>
+        <div className="bg-[#2c2e31] rounded-lg p-6 text-center">
           <h3 className="text-[#646669] text-sm mb-2">Win Rate</h3>
           <p className="text-2xl text-[#e2b714]">
-            {userData?.stats?.overall?.winRate || 0}%
+            {((userData?.stats?.overall?.totalWins || 0) /
+              ((userData?.stats?.overall?.totalWins || 0) +
+                (userData?.stats?.overall?.totalLosses || 0)) +
+              (userData?.stats?.overall?.totalTies || 0)) *
+              100 || 0}
+            %
           </p>
         </div>
       </div>

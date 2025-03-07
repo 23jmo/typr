@@ -20,26 +20,8 @@ import { useUser } from "../contexts/UserContext";
 import StatsOverview from "../components/StatsOverview";
 import { GameResult } from "../types";
 import { auth, userService } from "../services/firebase";
-
-interface Player {
-  connected?: boolean;
-  joinedAt?: any;
-  name?: string;
-  wpm?: number;
-  accuracy?: number;
-  progress?: number;
-  ready?: boolean;
-}
-
-interface GameData {
-  players: { [key: string]: Player };
-  status: "waiting" | "countdown" | "racing" | "finished";
-  text: string;
-  startTime?: number;
-  countdownStartedAt?: number;
-  winner?: string;
-  timeLimit: number; // in seconds
-}
+import FinishedScreen from "../components/ranked/FinishedScreen";
+import { GameData, Player } from "../types";
 
 const SAMPLE_TEXT =
   "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
@@ -514,30 +496,14 @@ const RaceRoom = () => {
 
       {/* Winner screen and Stats */}
       {gameData?.status === "finished" && (
-        <div className="fixed inset-0 bg-[#323437] bg-opacity-95 flex flex-col items-center justify-center">
-          <div className="text-center text-2xl mb-8">
-            <h2 className="text-4xl mb-4">
-              {gameData.winner === username
-                ? "You won!"
-                : `${gameData.players[gameData.winner!]?.name} won!`}
-            </h2>
-            <div className="space-y-2">
-              {Object.entries(gameData.players).map(([playerId, player]) => (
-                <div key={playerId}>
-                  {player.name}: {player.wpm} WPM, {player.accuracy}% accuracy
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <StatsOverview
-            wpm={wpm}
-            accuracy={accuracy}
-            startTime={startTime}
-            wpmHistory={wpmHistory}
-            charStats={charStats}
-          />
-        </div>
+        <FinishedScreen
+          gameData={gameData}
+          wpm={wpm}
+          accuracy={accuracy}
+          startTime={startTime || 0}
+          wpmHistory={wpmHistory}
+          charStats={charStats}
+        />
       )}
     </div>
   );

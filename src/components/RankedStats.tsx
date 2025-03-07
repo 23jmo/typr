@@ -8,14 +8,17 @@ const RankedStats = () => {
     const avgWpm = userData?.stats?.overall?.averageWPM || 0;
     return (
       Object.values(rankedIcons).find(
-        (rank) => avgWpm >= rank.minWPM && avgWpm <= rank.maxWPM
+        (rank) =>
+          userData?.stats?.overall?.elo &&
+          userData?.stats?.overall?.elo >= rank.minElo &&
+          userData?.stats?.overall?.elo <= rank.maxElo
       ) || rankedIcons.plastic
     );
   };
 
   const currentRank = getUserRank();
   const nextRank = Object.values(rankedIcons).find(
-    (rank) => rank.minWPM > (userData?.stats?.overall?.averageWPM || 0)
+    (rank) => rank.minElo > (userData?.stats?.overall?.elo || 0)
   );
 
   return (
@@ -31,8 +34,7 @@ const RankedStats = () => {
             <p className="text-[#646669]">
               {nextRank
                 ? `${
-                    nextRank.minWPM -
-                    (userData?.stats?.overall?.averageWPM || 0)
+                    nextRank.minElo - (userData?.stats?.overall?.elo || 0)
                   } WPM until ${nextRank.name}`
                 : "Maximum rank achieved!"}
             </p>
@@ -78,7 +80,12 @@ const RankedStats = () => {
             <div>
               <p className="text-[#646669] text-sm">Win Rate</p>
               <p className="text-3xl text-[#e2b714]">
-                {userData?.stats?.overall?.winRate || 0}%
+                {((userData?.stats?.overall?.totalWins || 0) /
+                  ((userData?.stats?.overall?.totalWins || 0) +
+                    (userData?.stats?.overall?.totalLosses || 0) +
+                    (userData?.stats?.overall?.totalTies || 0))) *
+                  100}
+                %
               </p>
             </div>
           </div>
@@ -92,17 +99,16 @@ const RankedStats = () => {
               className="absolute h-full bg-[#e2b714] rounded-full transition-all duration-300"
               style={{
                 width: `${
-                  (((userData?.stats?.overall?.averageWPM || 0) -
-                    currentRank.minWPM) /
-                    (nextRank ? nextRank.minWPM - currentRank.minWPM : 1)) *
+                  (((userData?.stats?.overall?.elo || 0) - currentRank.minElo) /
+                    (nextRank ? nextRank.minElo - currentRank.minElo : 1)) *
                   100
                 }%`,
               }}
             />
           </div>
           <div className="flex justify-between mt-2 text-sm text-[#646669]">
-            <span>{currentRank.minWPM} WPM</span>
-            <span>{nextRank ? `${nextRank.minWPM} WPM` : "Max"}</span>
+            <span>{currentRank.minElo} WPM</span>
+            <span>{nextRank ? `${nextRank.minElo} WPM` : "Max"}</span>
           </div>
         </div>
       </div>

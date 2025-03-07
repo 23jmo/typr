@@ -61,4 +61,24 @@ interface GameResult {
   totalTimePlayed: number;
 }
 
-export type { UserData, GameResult };
+interface Player {
+  connected?: boolean;
+  joinedAt?: any;
+  name?: string;
+  wpm?: number;
+  accuracy?: number;
+  progress?: number;
+  ready?: boolean;
+}
+
+interface GameData {
+  players: { [key: string]: Player };
+  status: "waiting" | "countdown" | "racing" | "finished";
+  text: string;
+  startTime?: number;
+  countdownStartedAt?: number;
+  winner?: string;
+  timeLimit: number; // in seconds
+}
+
+export type { UserData, GameResult, GameData, Player };

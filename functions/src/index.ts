@@ -96,6 +96,50 @@ export const handleGameStateChange = onDocumentUpdated(
     const newData = event.data.after.data() as GameData;
     const oldData = event.data.before.data() as GameData;
 
+    logger.info("handleGameStateChange triggered:", {
+      roomId: event.params.roomId,
+      oldStatus: oldData.status,
+      newStatus: newData.status,
+      isRanked: "ranked" in newData && newData.ranked === true,
+      players: Object.keys(newData.players || {}).length,
+      connectedPlayers: Object.values(newData.players || {}).filter(
+        (p) => p.connected
+      ).length,
+      readyPlayers: Object.values(newData.players || {}).filter((p) => p.ready)
+        .length,
+    });
+
+    // For ranked games, if status is waiting and both players are connected, set to countdown
+    if (
+      "ranked" in newData &&
+      newData.ranked === true &&
+      newData.status === "waiting"
+    ) {
+      const connectedPlayers = Object.values(newData.players || {}).filter(
+        (p) => p.connected
+      );
+      if (connectedPlayers.length === 2) {
+        logger.info(
+          "Ranked game with both players connected, setting status to countdown"
+        );
+        await event.data.after.ref.update({
+          status: "countdown",
+          countdownStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return;
+      }
+    }
+
+    // Skip ranked games that are already in countdown state
+    if (
+      "ranked" in newData &&
+      newData.ranked === true &&
+      newData.status === "countdown"
+    ) {
+      logger.info("Skipping ranked game already in countdown state");
+      return;
+    }
+
     // If all players are ready and status is waiting, start countdown
     if (newData.status === "waiting") {
       const players = Object.values(newData.players || {});
@@ -106,6 +150,8 @@ export const handleGameStateChange = onDocumentUpdated(
 
       logger.info(`Connected Players Count: ${connectedPlayers.length}`);
       logger.info(`All Players Ready: ${allPlayersReady}`);
+
+      
 
       if (allPlayersReady) {
         logger.info("All players ready, starting countdown");
@@ -401,7 +447,6 @@ export const handleRankedGameComplete = onDocumentUpdated(
         "stats.overall.peakElo":
           admin.firestore.FieldValue.increment(eloChange),
         "stats.overall.totalWins": admin.firestore.FieldValue.increment(1),
-        "stats.overall.winRate": admin.firestore.FieldValue.increment(1),
         currentGame: admin.firestore.FieldValue.delete(), // Clear currentGame reference
         "matchmaking.status": "idle", // Reset matchmaking status
       });
@@ -411,7 +456,6 @@ export const handleRankedGameComplete = onDocumentUpdated(
       batch.update(loserRef, {
         "stats.overall.elo": admin.firestore.FieldValue.increment(-eloChange),
         "stats.overall.totalLosses": admin.firestore.FieldValue.increment(1),
-        "stats.overall.winRate": admin.firestore.FieldValue.increment(-1),
         currentGame: admin.firestore.FieldValue.delete(), // Clear currentGame reference
         "matchmaking.status": "idle", // Reset matchmaking status
       });
