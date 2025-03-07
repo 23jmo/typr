@@ -1,17 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
-import { useUser } from "../contexts/UserContext";
 import StatsOverview from "../components/StatsOverview";
 import { GameResult } from "../types";
 import { auth } from "../services/firebase";
 import { userStatsService } from "../services/firebase";
 import { generateTextByTopic } from "../utilities/random-text";
 
-const SAMPLE_TEXT =
-  "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
-
-const cursorStyle =
-  "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse transition-transform duration-75";
 
 //TODO: add a graph of wpm and accuracy over time
 

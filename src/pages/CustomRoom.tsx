@@ -1,9 +1,8 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useUser } from "../contexts/UserContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   getFirestore,
-  collection,
   doc,
   setDoc,
   serverTimestamp,
@@ -16,10 +15,28 @@ import { auth } from "../services/firebase";
 
 const CustomRoom = () => {
   const navigate = useNavigate();
+  const { roomId: urlRoomId } = useParams();
   const { userData } = useUser();
-  const [roomId, setRoomId] = useState("");
+  const [roomId, setRoomId] = useState(urlRoomId || "");
   const [tempUsername, setTempUsername] = useState("");
   const [showUsernameInput, setShowUsernameInput] = useState(false);
+
+  useEffect(() => {
+    const autoJoinRoom = async () => {
+      if (!urlRoomId) return;
+      
+      // If no username is set, show the username input
+      if (!userData?.username && !tempUsername) {
+        setShowUsernameInput(true);
+        return;
+      }
+
+      // Try to join the room
+      await joinGame(urlRoomId);
+    };
+
+    autoJoinRoom();
+  }, [urlRoomId, userData?.username, tempUsername]);
 
   const createGame = async () => {
     const username = tempUsername || userData?.username;
@@ -40,7 +57,7 @@ const CustomRoom = () => {
         id: roomId,
         status: "waiting",
         createdAt: serverTimestamp(),
-        timeLimit: 60, // 60 seconds time limit
+        timeLimit: 60,
         players: {
           // Use userId as the key instead of username
           [userId]: {
@@ -56,16 +73,17 @@ const CustomRoom = () => {
         },
         text: "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.",
       });
-
       console.log("Game room created successfully:", roomId);
       navigate(`/race/${roomId}`);
+
     } catch (error) {
       console.error("Error creating game room:", error);
     }
   };
 
-  const joinGame = async () => {
+  const joinGame = async (targetRoomId?: string) => {
     const username = tempUsername || userData?.username;
+
     const userId = auth.currentUser?.uid;
 
     if (!username || !userId || !roomId) {
@@ -75,7 +93,7 @@ const CustomRoom = () => {
 
     try {
       const db = getFirestore();
-      const roomRef = doc(db, "gameRooms", roomId);
+      const roomRef = doc(db, "gameRooms", roomToJoin);
       const roomDoc = await getDoc(roomRef);
 
       if (!roomDoc.exists()) {
@@ -103,8 +121,10 @@ const CustomRoom = () => {
         },
       });
 
+
       console.log("Joined game room:", roomId);
       navigate(`/race/${roomId}`);
+      
     } catch (error) {
       console.error("Error joining game:", error);
       alert("Error joining game");
@@ -155,7 +175,7 @@ const CustomRoom = () => {
               className="flex-1 p-2 rounded bg-[#2c2e31] border border-[#646669] focus:outline-none focus:border-[#d1d0c5]"
             />
             <button
-              onClick={joinGame}
+              onClick={() => joinGame(roomId)}
               className="px-4 rounded bg-[#2c2e31] border border-[#646669] hover:bg-[#2c2e31]/90 transition-colors"
             >
               Join
