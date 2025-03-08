@@ -200,11 +200,48 @@ const RaceRoom = () => {
     if (!userId || !roomId) return;
 
     try {
+      console.log("Handling disconnect for user:", userId);
+
       const db = getFirestore();
       const roomRef = doc(db, "gameRooms", roomId);
+
+      // Get the current game data to check the status and player count
+      const roomSnapshot = await getDoc(roomRef);
+
+      if (!roomSnapshot.exists()) {
+        console.log("Room no longer exists, skipping disconnect handling");
+        return;
+      }
+
+      const currentGameData = roomSnapshot.data() as GameData;
+
+      // Update the player's connected status
       await updateDoc(roomRef, {
         [`players.${userId}.connected`]: false,
       });
+
+      console.log("Updated player connection status to disconnected");
+
+      // If the game is in voting state, check if we need to cancel voting
+      if (currentGameData.status === "voting") {
+        // Count how many players will still be connected after this disconnect
+        const connectedPlayers = Object.values(currentGameData.players).filter(
+          (player) => player.connected && player.name !== userData?.username
+        ).length;
+
+        console.log(`Connected players after disconnect: ${connectedPlayers}`);
+
+        // If there will be less than 2 connected players, cancel voting
+        if (connectedPlayers < 1) {
+          // Less than 1 other player (plus the current one who's disconnecting)
+          console.log(
+            "Less than 2 players will remain connected, canceling voting"
+          );
+          await updateDoc(roomRef, {
+            status: "waiting",
+          });
+        }
+      }
     } catch (error) {
       console.error("Error handling disconnect:", error);
     }
@@ -352,6 +389,23 @@ const RaceRoom = () => {
 
     // Handle countdown
     if (gameData.status === "countdown" && gameData.countdownStartedAt) {
+      // Check if there are at least 2 connected players before starting countdown
+      const connectedPlayers = Object.values(gameData.players).filter(
+        (player) => player.connected
+      );
+
+      if (connectedPlayers.length < 2) {
+        console.log(
+          "Not enough players to start countdown, returning to waiting state"
+        );
+        updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
+          status: "waiting",
+        }).catch((error) => {
+          console.error("Error updating game status:", error);
+        });
+        return;
+      }
+
       // Reset game state at the start of countdown
       resetGame();
 
@@ -386,6 +440,39 @@ const RaceRoom = () => {
     // Handle voting state
     if (gameData.status === "voting") {
       console.log("Handling voting state");
+
+      // Check if this is a ranked game (should not happen, but just in case)
+      if ("ranked" in gameData) {
+        console.error("Voting state detected for a ranked game");
+        return;
+      }
+
+      // Check if there are at least 2 connected players
+      const connectedPlayers = Object.values(gameData.players).filter(
+        (player) => player.connected
+      );
+
+      if (connectedPlayers.length < 2) {
+        console.log(
+          "Less than 2 connected players during voting, returning to waiting state"
+        );
+        // Return to waiting state instead of continuing with voting
+        updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
+          status: "waiting",
+        }).catch((error) => {
+          console.error("Error updating game status:", error);
+        });
+        return;
+      }
+
+      // Check if all connected players have voted
+      const allPlayersVoted = connectedPlayers.every((player) => player.vote);
+
+      if (allPlayersVoted && connectedPlayers.length >= 2) {
+        console.log("All players have voted, ending voting early");
+        handleVotingEnd();
+        return;
+      }
 
       // Use clientVotingEndTime for client-side calculations if available
       if (gameData.clientVotingEndTime) {
@@ -474,10 +561,49 @@ const RaceRoom = () => {
     try {
       console.log("Handling voting end for room:", roomId);
 
+      // Check if this is a ranked game (should not happen, but just in case)
+      if ("ranked" in gameData) {
+        console.error("Voting end handler called for a ranked game");
+        return;
+      }
+
+      // CRITICAL: Get the latest game data to ensure we have the most up-to-date player connection status
+      const db = getFirestore();
+      const roomRef = doc(db, "gameRooms", roomId);
+      const roomSnapshot = await getDoc(roomRef);
+
+      if (!roomSnapshot.exists()) {
+        console.error("Room no longer exists");
+        return;
+      }
+
+      const latestGameData = roomSnapshot.data() as GameData;
+
+      // Check if there are at least 2 connected players using the latest data
+      const connectedPlayers = Object.values(latestGameData.players).filter(
+        (player) => player.connected
+      );
+
+      console.log(
+        `Connected players at voting end: ${connectedPlayers.length}`
+      );
+
+      if (connectedPlayers.length < 2) {
+        console.log(
+          "Less than 2 connected players, returning to waiting state"
+        );
+        // Return to waiting state instead of starting a new race
+        await updateDoc(roomRef, {
+          status: "waiting",
+        });
+        return;
+      }
+
       // Count votes for each topic
       const votes: { [topic: string]: number } = {};
 
-      Object.values(gameData.players).forEach((player) => {
+      // Use the latest game data to count votes
+      Object.values(latestGameData.players).forEach((player) => {
         if (player.vote && player.connected) {
           votes[player.vote] = (votes[player.vote] || 0) + 1;
         }
@@ -489,88 +615,85 @@ const RaceRoom = () => {
       let winningTopic = "";
       let maxVotes = 0;
 
-      Object.entries(votes).forEach(([topic, voteCount]) => {
-        if (voteCount > maxVotes) {
-          maxVotes = voteCount;
+      for (const [topic, count] of Object.entries(votes)) {
+        if (count > maxVotes) {
+          maxVotes = count;
           winningTopic = topic;
         }
-      });
+      }
 
       // If there's a tie or no votes, pick a random topic from the options
-      if (
-        !winningTopic &&
-        gameData.topicOptions &&
-        gameData.topicOptions.length > 0
-      ) {
-        const randomIndex = Math.floor(
-          Math.random() * gameData.topicOptions.length
-        );
-        winningTopic = gameData.topicOptions[randomIndex];
-        console.log("No clear winner, randomly selected:", winningTopic);
+      if (maxVotes === 0 || !winningTopic) {
+        console.log("No clear winner, selecting random topic");
+        const options = latestGameData.topicOptions || [];
+        if (options.length > 0) {
+          winningTopic = options[Math.floor(Math.random() * options.length)];
+        } else {
+          // Fallback to a default topic if no options are available
+          winningTopic = "programming";
+        }
       }
 
       console.log("Winning topic:", winningTopic);
 
-      // Generate text for the selected topic
-      let newText = "";
+      // Generate new text based on the winning topic
+      console.log("Generating text for topic:", winningTopic);
+      let newText;
       try {
-        console.log("Generating text for topic:", winningTopic);
+        // Properly await the result from generateTextByTopic
         newText = await generateTextByTopic(winningTopic);
-        console.log("Generated text:", newText.substring(0, 50) + "...");
+        console.log("Successfully generated text for topic:", winningTopic);
       } catch (error) {
         console.error("Error generating text for topic:", error);
-        // Fallback to a default text
+        // Fallback to a default text if text generation fails
         newText =
-          "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.";
+          "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
       }
 
-      // Update the game state to start countdown with the new text
-      const db = getFirestore();
-      console.log("Updating game state to countdown with new text");
-      await updateDoc(doc(db, "gameRooms", roomId), {
+      // Update the game room with the new text and reset to countdown state
+      await updateDoc(roomRef, {
         status: "countdown",
-        countdownStartedAt: serverTimestamp(),
         text: newText,
+        countdownStartedAt: serverTimestamp(),
         selectedTopic: winningTopic,
-        // Reset player states
+        // Reset player progress
         ...Object.fromEntries(
-          Object.keys(gameData.players).map((playerId) => [
-            `players.${playerId}.ready`,
-            false,
-          ])
-        ),
-        ...Object.fromEntries(
-          Object.keys(gameData.players).map((playerId) => [
-            `players.${playerId}.wpm`,
-            0,
-          ])
-        ),
-        ...Object.fromEntries(
-          Object.keys(gameData.players).map((playerId) => [
-            `players.${playerId}.accuracy`,
-            100,
-          ])
-        ),
-        ...Object.fromEntries(
-          Object.keys(gameData.players).map((playerId) => [
+          Object.keys(latestGameData.players).map((playerId) => [
             `players.${playerId}.progress`,
             0,
           ])
         ),
         ...Object.fromEntries(
-          Object.keys(gameData.players).map((playerId) => [
+          Object.keys(latestGameData.players).map((playerId) => [
+            `players.${playerId}.wpm`,
+            0,
+          ])
+        ),
+        ...Object.fromEntries(
+          Object.keys(latestGameData.players).map((playerId) => [
+            `players.${playerId}.accuracy`,
+            100,
+          ])
+        ),
+        ...Object.fromEntries(
+          Object.keys(latestGameData.players).map((playerId) => [
             `players.${playerId}.finished`,
             false,
           ])
         ),
       });
 
-      console.log(
-        "Game state updated to countdown with new topic:",
-        winningTopic
-      );
+      console.log("Started new race with topic:", winningTopic);
     } catch (error) {
       console.error("Error handling voting end:", error);
+      // If there's an error, try to return to waiting state as a fallback
+      try {
+        await updateDoc(doc(getFirestore(), "gameRooms", roomId), {
+          status: "waiting",
+        });
+      } catch (fallbackError) {
+        console.error("Error returning to waiting state:", fallbackError);
+      }
     }
   };
 
@@ -830,6 +953,36 @@ const RaceRoom = () => {
 
     setOpponentCursors(newOpponentCursors);
   }, [gameData, text, userId]);
+
+  // Add a new useEffect hook to monitor connected players during voting
+  useEffect(() => {
+    if (!gameData || !roomId) return;
+
+    // Only monitor during voting state
+    if (gameData.status !== "voting") return;
+
+    // Check if this is a ranked game (should not happen, but just in case)
+    if ("ranked" in gameData) return;
+
+    // Count connected players
+    const connectedPlayers = Object.values(gameData.players).filter(
+      (player) => player.connected
+    );
+
+    // If there are less than 2 connected players, cancel voting and return to waiting state
+    if (connectedPlayers.length < 2) {
+      console.log(
+        "Player count dropped below 2 during voting, canceling voting process"
+      );
+
+      // Return to waiting state
+      updateDoc(doc(getFirestore(), "gameRooms", roomId), {
+        status: "waiting",
+      }).catch((error) => {
+        console.error("Error updating game status:", error);
+      });
+    }
+  }, [gameData, roomId]);
 
   return (
     <div className="flex flex-col items-center min-h-screen p-4">
