@@ -19,19 +19,25 @@ interface Player {
   finished?: boolean;
   finishTime?: number;
   elo?: number;
+  vote?: string; // The topic ID this player voted for
 }
 
 // Custom Game
 
 interface GameData {
   players: { [key: string]: Player };
-  status: "waiting" | "countdown" | "racing" | "finished";
+  status: "waiting" | "countdown" | "racing" | "finished" | "voting";
   text: string;
   startTime?: admin.firestore.Timestamp | number;
   countdownStartedAt?: admin.firestore.Timestamp | admin.firestore.FieldValue;
   createdAt?: admin.firestore.Timestamp | admin.firestore.FieldValue;
   winner?: string;
   timeLimit: number; // in seconds
+  // Voting-related fields
+  topicOptions?: string[]; // List of topics to vote on
+  votingEndTime?: admin.firestore.Timestamp | number; // Timestamp when voting ends
+  clientVotingEndTime?: number; // Client-side timestamp for voting end time calculations
+  selectedTopic?: string; // The topic that was selected after voting
 }
 
 export const handlePlayerDisconnect = onDocumentUpdated(
@@ -150,8 +156,6 @@ export const handleGameStateChange = onDocumentUpdated(
 
       logger.info(`Connected Players Count: ${connectedPlayers.length}`);
       logger.info(`All Players Ready: ${allPlayersReady}`);
-
-      
 
       if (allPlayersReady) {
         logger.info("All players ready, starting countdown");

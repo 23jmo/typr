@@ -36,7 +36,6 @@ const MatchmakingScreen = () => {
 
   useEffect(() => {
     if (!userData) return;
-
     let unsubscribeListener: (() => void) | null = null;
 
     // Join queue
