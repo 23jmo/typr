@@ -15,6 +15,8 @@ import { auth, userService } from "../services/firebase";
 import FinishedScreen from "../components/ranked/FinishedScreen";
 import { GameData, Player } from "../types";
 import { useUser } from "../contexts/UserContext";
+import TopicVotingScreen from "../components/TopicVotingScreen";
+import { generateTextByTopic } from "../utilities/random-text";
 
 const SAMPLE_TEXT =
   "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
@@ -337,9 +339,11 @@ const RaceRoom = () => {
     }
   }, [userInput]);
 
-  // Update the game state effect
+  // Update the game state effect to handle voting state
   useEffect(() => {
     if (!gameData) return;
+
+    console.log("Game status changed to:", gameData.status);
 
     // Reset local state when game returns to waiting
     if (gameData.status === "waiting") {
@@ -374,7 +378,83 @@ const RaceRoom = () => {
             });
           }
         }, 1000);
+
         return () => clearInterval(timer);
+      }
+    }
+
+    // Handle voting state
+    if (gameData.status === "voting") {
+      console.log("Handling voting state");
+
+      // Use clientVotingEndTime for client-side calculations if available
+      if (gameData.clientVotingEndTime) {
+        console.log("Using clientVotingEndTime:", gameData.clientVotingEndTime);
+
+        const votingEnd = gameData.clientVotingEndTime;
+        const timeLeft = Math.ceil((votingEnd - Date.now()) / 1000);
+
+        if (timeLeft > 0) {
+          const timer = setInterval(() => {
+            const newTimeLeft = Math.ceil((votingEnd - Date.now()) / 1000);
+
+            if (newTimeLeft <= 0) {
+              clearInterval(timer);
+              handleVotingEnd();
+            }
+          }, 1000);
+
+          return () => clearInterval(timer);
+        } else {
+          // If voting time has already ended, handle it immediately
+          handleVotingEnd();
+        }
+      } else if (gameData.votingEndTime) {
+        // Fallback to votingEndTime if clientVotingEndTime is not available
+        console.log("Falling back to votingEndTime:", gameData.votingEndTime);
+
+        // Handle both JavaScript timestamps (numbers) and Firestore Timestamp objects
+        let votingEnd: number;
+
+        try {
+          if (typeof gameData.votingEndTime === "number") {
+            // It's already a JavaScript timestamp in milliseconds
+            votingEnd = gameData.votingEndTime;
+          } else {
+            // Try to use toMillis() if it's a Firestore Timestamp
+            // @ts-ignore - Ignore type checking for this line
+            const toMillis = gameData.votingEndTime.toMillis;
+            if (typeof toMillis === "function") {
+              // @ts-ignore - Ignore type checking for this line
+              votingEnd = gameData.votingEndTime.toMillis();
+            } else {
+              // Fallback - convert to a Date and get the time
+              votingEnd = new Date(gameData.votingEndTime as any).getTime();
+            }
+          }
+        } catch (error) {
+          // Final fallback - use current time plus 15 seconds if all else fails
+          console.error("Error parsing votingEndTime:", error);
+          votingEnd = Date.now() + 15000;
+        }
+
+        const timeLeft = Math.ceil((votingEnd - Date.now()) / 1000);
+
+        if (timeLeft > 0) {
+          const timer = setInterval(() => {
+            const newTimeLeft = Math.ceil((votingEnd - Date.now()) / 1000);
+
+            if (newTimeLeft <= 0) {
+              clearInterval(timer);
+              handleVotingEnd();
+            }
+          }, 1000);
+
+          return () => clearInterval(timer);
+        } else {
+          // If voting time has already ended, handle it immediately
+          handleVotingEnd();
+        }
       }
     }
 
@@ -383,6 +463,116 @@ const RaceRoom = () => {
       setIsFinished(true);
     }
   }, [gameData]);
+
+  // Function to handle the end of voting
+  const handleVotingEnd = async () => {
+    if (!roomId || !gameData) {
+      console.error("Missing roomId or gameData for handling voting end");
+      return;
+    }
+
+    try {
+      console.log("Handling voting end for room:", roomId);
+
+      // Count votes for each topic
+      const votes: { [topic: string]: number } = {};
+
+      Object.values(gameData.players).forEach((player) => {
+        if (player.vote && player.connected) {
+          votes[player.vote] = (votes[player.vote] || 0) + 1;
+        }
+      });
+
+      console.log("Vote counts:", votes);
+
+      // Find the winning topic (the one with the most votes)
+      let winningTopic = "";
+      let maxVotes = 0;
+
+      Object.entries(votes).forEach(([topic, voteCount]) => {
+        if (voteCount > maxVotes) {
+          maxVotes = voteCount;
+          winningTopic = topic;
+        }
+      });
+
+      // If there's a tie or no votes, pick a random topic from the options
+      if (
+        !winningTopic &&
+        gameData.topicOptions &&
+        gameData.topicOptions.length > 0
+      ) {
+        const randomIndex = Math.floor(
+          Math.random() * gameData.topicOptions.length
+        );
+        winningTopic = gameData.topicOptions[randomIndex];
+        console.log("No clear winner, randomly selected:", winningTopic);
+      }
+
+      console.log("Winning topic:", winningTopic);
+
+      // Generate text for the selected topic
+      let newText = "";
+      try {
+        console.log("Generating text for topic:", winningTopic);
+        newText = await generateTextByTopic(winningTopic);
+        console.log("Generated text:", newText.substring(0, 50) + "...");
+      } catch (error) {
+        console.error("Error generating text for topic:", error);
+        // Fallback to a default text
+        newText =
+          "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.";
+      }
+
+      // Update the game state to start countdown with the new text
+      const db = getFirestore();
+      console.log("Updating game state to countdown with new text");
+      await updateDoc(doc(db, "gameRooms", roomId), {
+        status: "countdown",
+        countdownStartedAt: serverTimestamp(),
+        text: newText,
+        selectedTopic: winningTopic,
+        // Reset player states
+        ...Object.fromEntries(
+          Object.keys(gameData.players).map((playerId) => [
+            `players.${playerId}.ready`,
+            false,
+          ])
+        ),
+        ...Object.fromEntries(
+          Object.keys(gameData.players).map((playerId) => [
+            `players.${playerId}.wpm`,
+            0,
+          ])
+        ),
+        ...Object.fromEntries(
+          Object.keys(gameData.players).map((playerId) => [
+            `players.${playerId}.accuracy`,
+            100,
+          ])
+        ),
+        ...Object.fromEntries(
+          Object.keys(gameData.players).map((playerId) => [
+            `players.${playerId}.progress`,
+            0,
+          ])
+        ),
+        ...Object.fromEntries(
+          Object.keys(gameData.players).map((playerId) => [
+            `players.${playerId}.finished`,
+            false,
+          ])
+        ),
+      });
+
+      console.log(
+        "Game state updated to countdown with new topic:",
+        winningTopic
+      );
+    } catch (error) {
+      console.error("Error handling voting end:", error);
+    }
+  };
 
   // Add effect to check if all players are ready and start countdown
   useEffect(() => {
@@ -687,6 +877,9 @@ const RaceRoom = () => {
                     />
                   </div>
                 )}
+                {gameData.status === "voting" && player.vote && (
+                  <span className="text-yellow-400">(Voted)</span>
+                )}
               </div>
             ))}
       </div>
@@ -809,6 +1002,14 @@ const RaceRoom = () => {
             })}
           </div>
         </div>
+      )}
+
+      {/* Topic voting screen */}
+      {gameData?.status === "voting" && gameData && (
+        <TopicVotingScreen
+          gameData={gameData}
+          roomId={roomId!}
+        />
       )}
 
       {/* Winner screen and Stats */}
