@@ -15,6 +15,7 @@ import { auth, userService } from "../services/firebase";
 import FinishedScreen from "../components/ranked/FinishedScreen";
 import { GameData, Player } from "../types";
 import { useUser } from "../contexts/UserContext";
+import CountdownAnimation from "../components/CountdownAnimation";
 import TopicVotingScreen from "../components/TopicVotingScreen";
 import { generateTextByTopic } from "../utilities/random-text";
 
@@ -424,6 +425,7 @@ const RaceRoom = () => {
 
           if (newTimeLeft <= 0) {
             clearInterval(timer);
+            setCountdown(0); // Set to 0 for "GO!" animation
             // Set startTime when the race actually begins
             setStartTime(Date.now());
             updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
@@ -1049,8 +1051,14 @@ const RaceRoom = () => {
         </button>
       )}
 
-      {gameData?.status === "countdown" && (
-        <div className="text-6xl font-bold mb-8">{countdown}</div>
+      {/* Show countdown when in countdown state or when just starting racing (for GO! animation) */}
+      {(gameData?.status === "countdown" || (gameData?.status === "racing" && countdown === 0)) && (
+        <div className="flex flex-col items-center justify-center mb-8">
+          <CountdownAnimation count={countdown} />
+          <div className="text-lg text-gray-400 mt-2">
+            {countdown !== 0 ? "Race starting soon..." : ""}
+          </div>
+        </div>
       )}
 
       {/* Existing typing interface */}
