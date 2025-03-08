@@ -85,6 +85,9 @@ const RaceRoom = () => {
   const throttleUpdate = () => {
     if (updateTimeout.current || !userId) return;
 
+    // Skip updates during countdown
+    if (countdown !== null && countdown > 0) return;
+
     updateTimeout.current = setTimeout(async () => {
       const db = getFirestore();
       const roomRef = doc(db, "gameRooms", roomId!);
@@ -212,6 +215,12 @@ const RaceRoom = () => {
 
       if (isFinished) return;
 
+      // Prevent typing during countdown
+      if (countdown !== null && countdown > 0) return;
+
+      // Only allow typing during racing mode
+      if (gameData?.status !== "racing") return;
+
       // Ignore if Alt+Delete/Backspace (handled by dedicated handler)
       if ((e.key === "Delete" || e.key === "Backspace") && e.altKey) {
         return;
@@ -253,8 +262,10 @@ const RaceRoom = () => {
         // Calculate WPM and add to history
         const timeElapsed =
           (Date.now() - (startTime || Date.now())) / 1000 / 60;
+        // Ensure timeElapsed is never negative
+        const safeTimeElapsed = Math.max(timeElapsed, 0.001); // Minimum positive value to avoid division by zero
         const wordsTyped = newInput.length / 5;
-        const currentWpm = Math.round(wordsTyped / timeElapsed) || 0;
+        const currentWpm = Math.round(wordsTyped / safeTimeElapsed) || 0;
         setWpm(currentWpm);
         setWpmHistory((prev) => [
           ...prev,
@@ -298,7 +309,16 @@ const RaceRoom = () => {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [text, userInput, startTime, isFinished, userId, roomId]);
+  }, [
+    text,
+    userInput,
+    startTime,
+    isFinished,
+    userId,
+    roomId,
+    countdown,
+    gameData,
+  ]);
 
   // Update cursor position when input changes
   useEffect(() => {
@@ -328,11 +348,14 @@ const RaceRoom = () => {
 
     // Handle countdown
     if (gameData.status === "countdown" && gameData.countdownStartedAt) {
+      // Reset game state at the start of countdown
+      resetGame();
+
       const countdownDuration = 3; // 3 seconds countdown
       const countdownEnd =
         (gameData.countdownStartedAt as any).toMillis() +
         countdownDuration * 1000;
-      setStartTime(countdownEnd);
+      // Don't set startTime during countdown - it will be set when the race begins
       const timeLeft = Math.ceil((countdownEnd - Date.now()) / 1000);
 
       if (timeLeft > 0) {
@@ -343,6 +366,8 @@ const RaceRoom = () => {
 
           if (newTimeLeft <= 0) {
             clearInterval(timer);
+            // Set startTime when the race actually begins
+            setStartTime(Date.now());
             updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
               status: "racing",
               startTime: serverTimestamp(),
@@ -385,8 +410,11 @@ const RaceRoom = () => {
   useEffect(() => {
     if (!userId || !roomId || !gameData || gameData.status !== "racing") return;
 
+    // Skip updates during countdown
+    if (countdown !== null && countdown > 0) return;
+
     throttleUpdate();
-  }, [userInput, wpm, accuracy]);
+  }, [userInput, wpm, accuracy, countdown, userId, roomId, gameData]);
 
   const toggleReady = async () => {
     if (!userId || !roomId) return;
@@ -416,12 +444,20 @@ const RaceRoom = () => {
       extra: 0,
       missed: 0,
     });
+    // Reset cursor position
+    setCursorPosition({ x: 0, y: 0 });
   };
 
   // Add a dedicated handler for Alt+Delete/Backspace
   useEffect(() => {
     const handleAltDelete = (e: KeyboardEvent) => {
       if (isFinished) return;
+
+      // Prevent typing during countdown
+      if (countdown !== null && countdown > 0) return;
+
+      // Only allow typing during racing mode
+      if (gameData?.status !== "racing") return;
 
       // Check for Alt+Delete or Alt+Backspace
       if ((e.key === "Delete" || e.key === "Backspace") && e.altKey) {
@@ -488,10 +524,16 @@ const RaceRoom = () => {
 
     window.addEventListener("keydown", handleAltDelete, true); // Use capture phase
     return () => window.removeEventListener("keydown", handleAltDelete, true);
-  }, [userInput, isFinished, text]);
+  }, [userInput, isFinished, text, countdown, gameData]);
 
   // Update character stats when userInput changes
   useEffect(() => {
+    // Skip calculations during countdown
+    if (countdown !== null && countdown > 0) return;
+
+    // Only update stats during racing mode
+    if (gameData?.status !== "racing") return;
+
     // Calculate accuracy based on current stats
     const totalChars =
       charStats.correct + charStats.incorrect + charStats.extra;
@@ -504,7 +546,7 @@ const RaceRoom = () => {
       const currentWpm = Math.round(wordsTyped / timeElapsed) || 0;
       setWpm(currentWpm);
     }
-  }, [userInput, charStats, startTime]);
+  }, [userInput, charStats, startTime, countdown, gameData]);
 
   // Function to get cursor coordinates for a specific position in the text
   const getCursorCoordinates = (
