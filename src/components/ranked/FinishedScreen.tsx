@@ -79,6 +79,59 @@ const FinishedScreen = ({
   );
   const [newElo, setNewElo] = useState<number>(currentElo);
 
+  // Animation for progress bar
+  const [progressWidth, setProgressWidth] = useState<number>(0);
+  const [hasEnoughPlayers, setHasEnoughPlayers] = useState<boolean>(false);
+
+  // Find current and next rank
+  const getCurrentRank = (elo: number) => {
+    const ranks = Object.entries(rankedIcons);
+    for (const [key, rank] of ranks) {
+      if (elo >= rank.minElo && elo <= rank.maxElo) {
+        return { rankKey: key, ...rank };
+      }
+    }
+    return { rankKey: "plastic", ...ranks[0][1] }; // Default to first rank
+  };
+
+  const currentRank = getCurrentRank(currentElo);
+  const nextRank = getCurrentRank(newElo);
+  const isNextRankDifferent = currentRank.rankKey !== nextRank.rankKey;
+
+  // Calculate progress percentage within current rank
+  const calculateProgress = (elo: number, rank: any) => {
+    if (rank.maxElo === Infinity) return 100;
+    const totalRange = rank.maxElo - rank.minElo;
+    const progress = ((elo - rank.minElo) / totalRange) * 100;
+    return Math.min(Math.max(progress, 0), 100);
+  };
+
+  const oldProgress = calculateProgress(currentElo, currentRank);
+  const newProgress = isNextRankDifferent
+    ? 100
+    : calculateProgress(newElo, currentRank);
+
+  useEffect(() => {
+    // Animate progress bar after component mounts
+    setTimeout(() => {
+      setProgressWidth(newProgress);
+    }, 500);
+  }, [newProgress]);
+
+  // Update hasEnoughPlayers state whenever gameData changes
+  useEffect(() => {
+    const connectedPlayers = Object.values(gameData.players).filter(
+      (player) => player.connected
+    );
+    setHasEnoughPlayers(connectedPlayers.length >= 2);
+
+    // Log player count for debugging
+    console.log(`Connected players: ${connectedPlayers.length}`);
+    if (connectedPlayers.length < 2) {
+      console.log("Not enough players to enable Pick Next Topic button");
+    }
+  }, [gameData]);
+
   // Update user stats after the game
   useEffect(() => {
     const updateStats = async () => {
@@ -188,44 +241,6 @@ const FinishedScreen = ({
     }
   }, [gameData, userId, isWinner, userData]);
 
-  // Animation for progress bar
-  const [progressWidth, setProgressWidth] = useState(0);
-
-  // Find current and next rank
-  const getCurrentRank = (elo: number) => {
-    const ranks = Object.entries(rankedIcons);
-    for (const [key, rank] of ranks) {
-      if (elo >= rank.minElo && elo <= rank.maxElo) {
-        return { rankKey: key, ...rank };
-      }
-    }
-    return { rankKey: "plastic", ...ranks[0][1] }; // Default to first rank
-  };
-
-  const currentRank = getCurrentRank(currentElo);
-  const nextRank = getCurrentRank(newElo);
-  const isNextRankDifferent = currentRank.rankKey !== nextRank.rankKey;
-
-  // Calculate progress percentage within current rank
-  const calculateProgress = (elo: number, rank: any) => {
-    if (rank.maxElo === Infinity) return 100;
-    const totalRange = rank.maxElo - rank.minElo;
-    const progress = ((elo - rank.minElo) / totalRange) * 100;
-    return Math.min(Math.max(progress, 0), 100);
-  };
-
-  const oldProgress = calculateProgress(currentElo, currentRank);
-  const newProgress = isNextRankDifferent
-    ? 100
-    : calculateProgress(newElo, currentRank);
-
-  useEffect(() => {
-    // Animate progress bar after component mounts
-    setTimeout(() => {
-      setProgressWidth(newProgress);
-    }, 500);
-  }, [newProgress]);
-
   // Add function to start the next topic voting
   const startNextTopicVoting = async () => {
     console.log("Starting next topic voting for room:", roomId);
@@ -235,12 +250,32 @@ const FinishedScreen = ({
       return;
     }
 
+    // Double-check that this is a custom game (not ranked)
+    if ("ranked" in gameData) {
+      console.error("Cannot start next topic voting for ranked games");
+      alert("Next topic voting is only available for custom games");
+      return;
+    }
+
+    // Double-check that there are at least 2 connected players
+    const currentConnectedPlayers = Object.values(gameData.players).filter(
+      (player) => player.connected
+    );
+
+    if (currentConnectedPlayers.length < 2) {
+      console.error(
+        "Cannot start next topic voting with less than 2 connected players"
+      );
+      alert("At least 2 players must be connected to start next topic voting");
+      return;
+    }
+
     try {
       const db = getFirestore();
       const roomRef = doc(db, "gameRooms", roomId);
 
-      // Check if the room document exists
-      const roomDoc = await getDoc(roomRef);
+      // CRITICAL: Get the latest game data to ensure we have the most up-to-date player connection status
+      const roomSnapshot = await getDoc(roomRef);
 
       // Select 4 random topics from the TOPIC_DESCRIPTIONS object
       const allTopics = Object.keys(TOPIC_DESCRIPTIONS);
@@ -261,35 +296,56 @@ const FinishedScreen = ({
       const votingEndTime = serverTimestamp();
       const clientVotingEndTime = Date.now() + 15000; // For client-side calculations
 
-      if (!roomDoc.exists()) {
-        console.log("Room document doesn't exist. Recreating it for voting.");
+      if (!roomSnapshot.exists()) {
+        console.log("Room no longer exists. Recreating it for voting...");
 
-        // Recreate the room with the current players
-        const players = gameData.players;
-
-        // Create a new room document with voting state
+        // Recreate the room with the current game data
         await setDoc(roomRef, {
           status: "voting",
-          players: players,
+          players: gameData.players,
+          text: gameData.text || "The quick brown fox jumps over the lazy dog.",
+          timeLimit: gameData.timeLimit || 60,
           topicOptions: randomTopics,
           votingEndTime: votingEndTime,
-          clientVotingEndTime: clientVotingEndTime, // Add client-side timestamp
-          text: gameData.text || "",
-          timeLimit: gameData.timeLimit || 60,
+          clientVotingEndTime: clientVotingEndTime,
           createdAt: serverTimestamp(),
         });
 
         console.log("Successfully recreated room for voting");
       } else {
+        console.log("Room exists, updating to voting state");
+
+        // Get the latest game data
+        const latestGameData = roomSnapshot.data() as GameData;
+
+        // Double-check that there are at least 2 connected players using the latest data
+        const connectedPlayers = Object.values(latestGameData.players).filter(
+          (player) => player.connected
+        );
+
+        console.log(
+          `Connected players before starting voting: ${connectedPlayers.length}`
+        );
+
+        if (connectedPlayers.length < 2) {
+          console.error(
+            "Cannot start next topic voting with less than 2 connected players"
+          );
+          alert(
+            "At least 2 players must be connected to start next topic voting"
+          );
+          return;
+        }
+
         // Update the existing game room status to "voting"
         await updateDoc(roomRef, {
           status: "voting",
           topicOptions: randomTopics,
           votingEndTime: votingEndTime,
-          clientVotingEndTime: clientVotingEndTime, // Add client-side timestamp
+          clientVotingEndTime: clientVotingEndTime,
           // Reset player votes
           ...Object.fromEntries(
-            Object.keys(gameData.players).map((playerId) => [
+            Object.keys(latestGameData.players).map((playerId) => [
               `players.${playerId}.vote`,
               null,
             ])
@@ -298,11 +354,16 @@ const FinishedScreen = ({
 
         console.log("Successfully updated existing room to voting state");
       }
+
+      console.log("Voting started with topics:", randomTopics);
     } catch (error) {
       console.error("Error starting next topic voting:", error);
       alert("Error starting next topic voting. Please try again.");
     }
   };
+
+  // Check if this is a custom game (not ranked)
+  const isCustomGame = !("ranked" in gameData);
 
   return (
     <div className="fixed inset-0 bg-[#1e1e1e] flex flex-col items-center justify-center p-6 overflow-y-auto">
@@ -472,12 +533,25 @@ const FinishedScreen = ({
         </div>
 
         <div className="flex justify-center mt-8 gap-4">
-          <button
-            className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-8 py-3 rounded-lg transition-all hover:shadow-lg"
-            onClick={startNextTopicVoting}
-          >
-            <FaVoteYea /> Pick Next Topic
-          </button>
+          {isCustomGame && (
+            <button
+              className={`flex items-center gap-2 ${
+                hasEnoughPlayers
+                  ? "bg-yellow-500 hover:bg-yellow-600 text-black"
+                  : "bg-gray-500 cursor-not-allowed text-gray-300"
+              } font-bold px-8 py-3 rounded-lg transition-all`}
+              onClick={hasEnoughPlayers ? startNextTopicVoting : undefined}
+              title={
+                hasEnoughPlayers
+                  ? "Vote for the next topic"
+                  : "At least 2 players must be connected to start next topic voting"
+              }
+              disabled={!hasEnoughPlayers}
+            >
+              <FaVoteYea />
+              {hasEnoughPlayers ? "Pick Next Topic" : "Need More Players"}
+            </button>
+          )}
 
           <button
             className="flex items-center gap-2 bg-[#333333] hover:bg-[#444444] text-white font-bold px-8 py-3 rounded-lg transition-all hover:shadow-lg"
