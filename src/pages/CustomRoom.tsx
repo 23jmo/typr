@@ -24,7 +24,7 @@ const CustomRoom = () => {
   useEffect(() => {
     const autoJoinRoom = async () => {
       if (!urlRoomId) return;
-      
+
       // If no username is set, show the username input
       if (!userData?.username && !tempUsername) {
         setShowUsernameInput(true);
@@ -75,7 +75,6 @@ const CustomRoom = () => {
       });
       console.log("Game room created successfully:", roomId);
       navigate(`/race/${roomId}`);
-
     } catch (error) {
       console.error("Error creating game room:", error);
     }
@@ -121,10 +120,8 @@ const CustomRoom = () => {
         },
       });
 
-
       console.log("Joined game room:", roomId);
       navigate(`/race/${roomId}`);
-      
     } catch (error) {
       console.error("Error joining game:", error);
       alert("Error joining game");
