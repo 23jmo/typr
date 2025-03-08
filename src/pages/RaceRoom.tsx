@@ -14,7 +14,7 @@ import { GameResult } from "../types";
 import { auth, userService } from "../services/firebase";
 import FinishedScreen from "../components/ranked/FinishedScreen";
 import { GameData, Player } from "../types";
-
+import { useUser } from "../contexts/UserContext";
 
 const SAMPLE_TEXT =
   "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
@@ -31,7 +31,6 @@ const GHOST_CURSOR_COLORS = [
   "bg-indigo-500",
   "bg-teal-500",
 ];
-
 
 const RaceRoom = () => {
   const { roomId } = useParams();
@@ -52,6 +51,7 @@ const RaceRoom = () => {
 
   const [gameData, setGameData] = useState<GameData | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [ready, setReady] = useState(false);
 
   const updateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -329,7 +329,9 @@ const RaceRoom = () => {
     // Handle countdown
     if (gameData.status === "countdown" && gameData.countdownStartedAt) {
       const countdownDuration = 3; // 3 seconds countdown
-      const countdownEnd = (gameData.countdownStartedAt as any).toMillis() + countdownDuration * 1000;
+      const countdownEnd =
+        (gameData.countdownStartedAt as any).toMillis() +
+        countdownDuration * 1000;
       setStartTime(countdownEnd);
       const timeLeft = Math.ceil((countdownEnd - Date.now()) / 1000);
 
@@ -387,7 +389,6 @@ const RaceRoom = () => {
   }, [userInput, wpm, accuracy]);
 
   const toggleReady = async () => {
-
     if (!userId || !roomId) return;
     const newReadyState = !ready;
     setReady(newReadyState);
@@ -400,7 +401,6 @@ const RaceRoom = () => {
     } catch (error) {
       console.error("Error toggling ready state:", error);
     }
-
   };
 
   const resetGame = () => {
@@ -414,7 +414,7 @@ const RaceRoom = () => {
       correct: 0,
       incorrect: 0,
       extra: 0,
-      missed: 0
+      missed: 0,
     });
   };
 
@@ -779,7 +779,6 @@ const RaceRoom = () => {
           wpmHistory={wpmHistory}
           charStats={charStats}
         />
-
       )}
     </div>
   );

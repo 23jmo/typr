@@ -93,7 +93,7 @@ const CustomRoom = () => {
 
     try {
       const db = getFirestore();
-      const roomRef = doc(db, "gameRooms", roomToJoin);
+      const roomRef = doc(db, "gameRooms", roomId);
       const roomDoc = await getDoc(roomRef);
 
       if (!roomDoc.exists()) {
