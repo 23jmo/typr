@@ -15,6 +15,7 @@ import { auth, userService } from "../services/firebase";
 import FinishedScreen from "../components/ranked/FinishedScreen";
 import { GameData, Player } from "../types";
 import { useUser } from "../contexts/UserContext";
+import CountdownAnimation from "../components/CountdownAnimation";
 
 const SAMPLE_TEXT =
   "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
@@ -343,6 +344,7 @@ const RaceRoom = () => {
 
           if (newTimeLeft <= 0) {
             clearInterval(timer);
+            setCountdown(0); // Set to 0 for "GO!" animation
             updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
               status: "racing",
               startTime: serverTimestamp(),
@@ -661,8 +663,14 @@ const RaceRoom = () => {
         </button>
       )}
 
-      {gameData?.status === "countdown" && (
-        <div className="text-6xl font-bold mb-8">{countdown}</div>
+      {/* Show countdown when in countdown state or when just starting racing (for GO! animation) */}
+      {(gameData?.status === "countdown" || (gameData?.status === "racing" && countdown === 0)) && (
+        <div className="flex flex-col items-center justify-center mb-8">
+          <CountdownAnimation count={countdown} />
+          <div className="text-lg text-gray-400 mt-2">
+            {countdown !== 0 ? "Race starting soon..." : ""}
+          </div>
+        </div>
       )}
 
       {/* Existing typing interface */}
