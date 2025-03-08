@@ -384,9 +384,9 @@ export const handleRankedGameComplete = onDocumentUpdated(
     const newData = event.data.after.data() as RankedGameData;
     const oldData = event.data.before.data() as RankedGameData;
 
-    // something wrong here - maybe check that the data is correct:
-    logger.info("Original game data:", newData);
-    logger.info("New game data after finished:", oldData);
+    // Log the game data for debugging
+    logger.info("Previous game data:", oldData);
+    logger.info("Updated game data:", newData);
 
     // Only process ranked games that just finished
     if (
@@ -440,12 +440,21 @@ export const handleRankedGameComplete = onDocumentUpdated(
       // Update player stats
       const batch = admin.firestore().batch();
 
+      // Get current user data to properly update peak ELO
+      const winnerDoc = await admin.firestore().collection("users").doc(winner).get();
+      const winnerData = winnerDoc.data();
+      const currentWinnerElo = winnerData?.stats?.overall?.elo || winnerInitialElo;
+      const currentWinnerPeakElo = winnerData?.stats?.overall?.peakElo || winnerInitialElo;
+      
+      // Calculate new ELO values
+      const newWinnerElo = currentWinnerElo + eloChange;
+      const newWinnerPeakElo = Math.max(newWinnerElo, currentWinnerPeakElo);
+
       // Update winner stats
       const winnerRef = admin.firestore().collection("users").doc(winner);
       batch.update(winnerRef, {
-        "stats.overall.elo": admin.firestore.FieldValue.increment(eloChange),
-        "stats.overall.peakElo":
-          admin.firestore.FieldValue.increment(eloChange),
+        "stats.overall.elo": newWinnerElo,
+        "stats.overall.peakElo": newWinnerPeakElo,
         "stats.overall.totalWins": admin.firestore.FieldValue.increment(1),
         currentGame: admin.firestore.FieldValue.delete(), // Clear currentGame reference
         "matchmaking.status": "idle", // Reset matchmaking status
@@ -466,7 +475,8 @@ export const handleRankedGameComplete = onDocumentUpdated(
         winner,
         loser,
         eloChange,
-        winnerNewElo: winnerInitialElo + eloChange,
+        winnerNewElo: newWinnerElo,
+        winnerNewPeakElo: newWinnerPeakElo,
         loserNewElo: loserInitialElo - eloChange,
       });
     } catch (error) {
