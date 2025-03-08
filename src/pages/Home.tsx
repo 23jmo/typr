@@ -1,27 +1,35 @@
 import { useNavigate } from "react-router-dom";
-import GameModeButton from "../components/GameModeButton";
+import GameModeCard from "../components/GameModeCard";
+import { FaUserFriends, FaTrophy, FaKeyboard } from "react-icons/fa";
+
 const Home = () => {
   const navigate = useNavigate();
+  
   return (
-    <div className="flex flex-col items-center justify-center h-screen">
-      <GameModeButton
+    <div className="flex w-full h-[100vh] bg-gray-900 flex-col md:flex-row overflow-hidden">
+      <GameModeCard
+        title="Custom Game"
+        description="Play with friends using custom settings and create your own typing challenges"
+        icon={FaUserFriends}
+        color="text-blue-500"
         onClick={() => navigate("/custom")}
-        className="bg-blue-500 text-white px-4 py-2 rounded-md"
-      >
-        Custom Game
-      </GameModeButton>
-      <GameModeButton
-        onClick={() => navigate("/ranked")} //TODO: implement multiplayer matchmaking
-        className="bg-blue-500 text-white px-4 py-2 rounded-md"
-      >
-        Ranked Multiplayer
-      </GameModeButton>
-      <GameModeButton
-        onClick={() => navigate("/solo")} //TODO
-        className="bg-blue-500 text-white px-4 py-2 rounded-md"
-      >
-        Solo
-      </GameModeButton>
+      />
+      
+      <GameModeCard
+        title="Ranked Mode"
+        description="Compete against others and climb the leaderboard in competitive typing races"
+        icon={FaTrophy}
+        color="text-yellow-500"
+        onClick={() => navigate("/ranked")}
+      />
+      
+      <GameModeCard
+        title="Solo Practice"
+        description="Improve your typing skills at your own pace with various practice exercises"
+        icon={FaKeyboard}
+        color="text-green-500"
+        onClick={() => navigate("/solo")}
+      />
     </div>
   );
 };

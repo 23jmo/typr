@@ -226,7 +226,7 @@ const FinishedScreen = ({
         setCurrentElo(userElo);
 
         // Use a simplified calculation as fallback
-        const fallbackChange = isWinner ? 25 : -15;
+        const fallbackChange = isWinner ? 20 : -20;
         setEloChange(fallbackChange);
         setNewElo(userElo + fallbackChange);
       }
@@ -235,7 +235,7 @@ const FinishedScreen = ({
       const userElo = userData?.stats?.overall?.elo || 1000;
       setCurrentElo(userElo);
 
-      const fallbackChange = isWinner ? 25 : -15;
+      const fallbackChange = isWinner ? 20 : -20;
       setEloChange(fallbackChange);
       setNewElo(userElo + fallbackChange);
     }
@@ -366,10 +366,10 @@ const FinishedScreen = ({
   const isCustomGame = !("ranked" in gameData);
 
   return (
-    <div className="fixed inset-0 bg-[#1e1e1e] flex flex-col items-center justify-center p-6 overflow-y-auto">
-      <div className="bg-[#2a2a2a] rounded-xl shadow-xl p-8 max-w-3xl w-full mx-auto border border-[#3a3a3a]">
-        <div className="text-center mb-8">
-          <h2 className="text-5xl font-bold mb-6 flex items-center justify-center gap-3 text-yellow-400">
+    <div className="fixed inset-0 bg-[#1e1e1e] flex flex-col items-center justify-start p-4 pt-6 overflow-y-auto">
+      <div className="bg-[#2a2a2a] rounded-xl shadow-xl p-4 md:p-6 max-w-3xl w-full mx-auto my-2 border border-[#3a3a3a]">
+        <div className="text-center mb-4 md:mb-6">
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6 flex items-center justify-center gap-3 text-yellow-400">
             {isWinner ? (
               <>
                 <FaTrophy className="text-yellow-400" />
@@ -383,17 +383,17 @@ const FinishedScreen = ({
             )}
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mt-4 md:mt-6">
             {Object.entries(gameData.players).map(([playerId, player]) => (
               <div
                 key={playerId}
-                className={`p-6 rounded-lg bg-[#333333] border-2 ${
+                className={`p-4 md:p-6 rounded-lg bg-[#333333] border-2 ${
                   playerId === gameData.winner
                     ? "border-yellow-500"
                     : "border-[#444444]"
                 }`}
               >
-                <div className="font-medium text-xl mb-3 flex items-center">
+                <div className="font-medium text-lg md:text-xl mb-3 flex items-center">
                   <span className="text-white">{player.name}</span>
                   {playerId === userId && (
                     <span className="ml-2 text-sm bg-yellow-500 text-black font-bold px-2 py-0.5 rounded-full">
@@ -404,13 +404,13 @@ const FinishedScreen = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col">
                     <span className="text-gray-400 text-sm mb-1">WPM</span>
-                    <span className="text-yellow-400 font-mono text-2xl font-bold">
+                    <span className="text-yellow-400 font-mono text-xl md:text-2xl font-bold">
                       {player.wpm}
                     </span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-gray-400 text-sm mb-1">Accuracy</span>
-                    <span className="text-white font-mono text-2xl">
+                    <span className="text-white font-mono text-xl md:text-2xl">
                       {player.accuracy}%
                     </span>
                   </div>
@@ -422,8 +422,8 @@ const FinishedScreen = ({
 
         {/* ELO Change and Rank Progress Section */}
         {userId && (
-          <div className="bg-[#333333] p-6 rounded-lg mb-8 border border-[#444444]">
-            <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-white border-b border-[#444444] pb-3">
+          <div className="bg-[#333333] p-4 md:p-6 rounded-lg mb-4 md:mb-6 border border-[#444444]">
+            <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6 flex items-center gap-2 text-white border-b border-[#444444] pb-3">
               <span className="text-yellow-400">{currentRank.icon}</span> Rank
               Progress
             </h3>
@@ -519,8 +519,8 @@ const FinishedScreen = ({
           </div>
         )}
 
-        <div className="bg-[#333333] p-6 rounded-lg mb-8 border border-[#444444]">
-          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-white border-b border-[#444444] pb-3">
+        <div className="bg-[#333333] p-4 md:p-6 rounded-lg mb-4 md:mb-6 border border-[#444444]">
+          <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6 flex items-center gap-2 text-white border-b border-[#444444] pb-3">
             <FaChartLine className="text-yellow-400" /> Your Performance
           </h3>
           <StatsOverview
@@ -531,6 +531,7 @@ const FinishedScreen = ({
             charStats={charStats}
           />
         </div>
+
 
         <div className="flex justify-center mt-8 gap-4">
           {isCustomGame && (

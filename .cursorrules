@@ -1,0 +1,140 @@
+# PROJECT OVERVIEW
+This project is TYPR, a type racing app where users can race against each other through typing a prompted text.
+
+## Project Features
+Ranked Mode
+- Matchmaking mode. Based on user elo, goes up and down based on whether you win or lose, including ranked divisions
+- Matchmaking process
+Custom Game 
+- Send a friend a link to race against each other or join via custom codes
+Solo 
+- Simply practice typing alone
+
+# PERSONALITY
+Proceed as if you are a 10X engineer. Make sure you explain your thinking and work like a senior engineer would.
+
+# ERROR DEBUGGING
+1. Explain the error in simple terms
+2. Use sequential thinking to solve the problem
+
+# OUR .ENV VARIABLES
+backend/.env
+frontend/.env
+
+# PROJECT STRUCTURE
+tree -L 4 -a -I 'node_modules|.git|__pycache__|.DS_Store|.pytest_cache|.vscode'
+.
+├── .cursor
+│   └── rules
+│       ├── .cursorrules
+│       └── sequential-thinking.mdc
+├── .firebaserc
+├── .gitignore
+├── README.md
+├── TODO
+├── backend
+│   ├── .env
+│   ├── package-lock.json
+│   ├── package.json
+│   └── server.ts
+├── eslint.config.js
+├── firebase.json
+├── firestore.rules
+├── functions
+│   ├── .eslintrc.js
+│   ├── .gitignore
+│   ├── index.js
+│   ├── lib
+│   │   ├── index.js
+│   │   └── index.js.map
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── src
+│   │   └── index.ts
+│   ├── tsconfig.dev.json
+│   └── tsconfig.json
+├── index.html
+├── package-lock.json
+├── package.json
+├── public
+│   └── vite.svg
+├── src
+│   ├── App.tsx
+│   ├── assets
+│   │   ├── index.ts
+│   │   └── react.svg
+│   ├── components
+│   │   ├── GameModeButton.tsx
+│   │   ├── Header.tsx
+│   │   ├── OverallStats.tsx
+│   │   ├── RankedStats.tsx
+│   │   ├── StatsOverview.tsx
+│   │   ├── UsernamePrompt.tsx
+│   │   ├── WpmGraph.tsx
+│   │   └── ranked
+│   │       ├── FinishedScreen.css
+│   │       ├── FinishedScreen.tsx
+│   │       ├── MatchmakingScreen.tsx
+│   │       └── RankedHomePage.tsx
+│   ├── contexts
+│   │   └── UserContext.tsx
+│   ├── index.css
+│   ├── main.tsx
+│   ├── pages
+│   │   ├── CustomRoom.tsx
+│   │   ├── Home.tsx
+│   │   ├── RaceRoom.tsx
+│   │   ├── Ranked.tsx
+│   │   ├── SignIn.tsx
+│   │   ├── Solo.tsx
+│   │   └── Stats.tsx
+│   ├── services
+│   │   ├── firebase.ts
+│   │   └── migrate-user-stats.ts
+│   ├── types
+│   │   ├── index.ts
+│   │   └── ranks.ts
+│   ├── utilities
+│   │   └── random-text.ts
+│   └── vite-env.d.ts
+├── tailwind.config.js
+├── tsconfig.app.json
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts
+
+# TECH STACK
+- Vite.js + React + Typescript
+- Tailwind for styling 
+- Node.js for backend
+- Cloude Firestore for database
+
+# Fundamental Principles
+- Write clean, simple, readable code
+- Implement features in the simplest possible way
+- Keep files small and focused (<200 lines)
+- Test after every meaningful change
+- Focus on core functionality before optimization
+- Use clear, consistent naming
+- Think thoroughly before coding. Write 2-3 reasoning paragraphs.
+- ALWAYS write simple, clean and modular code.
+- use clear and easy-to-understand language. write in short sentences.
+
+# Error Fixing
+- DO NOT JUMP TO CONCLUSIONS! Consider multiple possible causes before deciding.
+- Explain the problem in plain English
+- Make minimal necessary changes, changing as few lines of code as possible
+- in case of strange errors, ask the user to perform a Perplexity web search to find the latest up-to-date information
+
+# Building Process
+- Verify each new feature works by telling the user how to test it
+- DO NOT write complicated and confusing code. Opt for the simple & modular approach.
+- when not sure what to do, tell the user to perform a web search
+
+# Comments
+- ALWAYS try to add more helpful and explanatory comments into our code
+- NEVER delete old comments - unless they are obviously wrong / obsolete
+- Include LOTS of explanatory comments in your code. ALWAYS write well-documented code.
+- Document all changes and their reasoning IN THE COMMENTS YOU WRITE
+- when writing comments, use clear and easy-to-understand language and write in short sentences.
+
