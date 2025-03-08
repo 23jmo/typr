@@ -16,6 +16,8 @@ import FinishedScreen from "../components/ranked/FinishedScreen";
 import { GameData, Player } from "../types";
 import { useUser } from "../contexts/UserContext";
 import CountdownAnimation from "../components/CountdownAnimation";
+import TopicVotingScreen from "../components/TopicVotingScreen";
+import { generateTextByTopic } from "../utilities/random-text";
 
 const SAMPLE_TEXT =
   "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
@@ -85,6 +87,9 @@ const RaceRoom = () => {
   // Function to update player data
   const throttleUpdate = () => {
     if (updateTimeout.current || !userId) return;
+
+    // Skip updates during countdown
+    if (countdown !== null && countdown > 0) return;
 
     updateTimeout.current = setTimeout(async () => {
       const db = getFirestore();
@@ -196,11 +201,48 @@ const RaceRoom = () => {
     if (!userId || !roomId) return;
 
     try {
+      console.log("Handling disconnect for user:", userId);
+
       const db = getFirestore();
       const roomRef = doc(db, "gameRooms", roomId);
+
+      // Get the current game data to check the status and player count
+      const roomSnapshot = await getDoc(roomRef);
+
+      if (!roomSnapshot.exists()) {
+        console.log("Room no longer exists, skipping disconnect handling");
+        return;
+      }
+
+      const currentGameData = roomSnapshot.data() as GameData;
+
+      // Update the player's connected status
       await updateDoc(roomRef, {
         [`players.${userId}.connected`]: false,
       });
+
+      console.log("Updated player connection status to disconnected");
+
+      // If the game is in voting state, check if we need to cancel voting
+      if (currentGameData.status === "voting") {
+        // Count how many players will still be connected after this disconnect
+        const connectedPlayers = Object.values(currentGameData.players).filter(
+          (player) => player.connected && player.name !== userData?.username
+        ).length;
+
+        console.log(`Connected players after disconnect: ${connectedPlayers}`);
+
+        // If there will be less than 2 connected players, cancel voting
+        if (connectedPlayers < 1) {
+          // Less than 1 other player (plus the current one who's disconnecting)
+          console.log(
+            "Less than 2 players will remain connected, canceling voting"
+          );
+          await updateDoc(roomRef, {
+            status: "waiting",
+          });
+        }
+      }
     } catch (error) {
       console.error("Error handling disconnect:", error);
     }
@@ -212,6 +254,12 @@ const RaceRoom = () => {
       // Add Tab key handler for restart
 
       if (isFinished) return;
+
+      // Prevent typing during countdown
+      if (countdown !== null && countdown > 0) return;
+
+      // Only allow typing during racing mode
+      if (gameData?.status !== "racing") return;
 
       // Ignore if Alt+Delete/Backspace (handled by dedicated handler)
       if ((e.key === "Delete" || e.key === "Backspace") && e.altKey) {
@@ -254,8 +302,10 @@ const RaceRoom = () => {
         // Calculate WPM and add to history
         const timeElapsed =
           (Date.now() - (startTime || Date.now())) / 1000 / 60;
+        // Ensure timeElapsed is never negative
+        const safeTimeElapsed = Math.max(timeElapsed, 0.001); // Minimum positive value to avoid division by zero
         const wordsTyped = newInput.length / 5;
-        const currentWpm = Math.round(wordsTyped / timeElapsed) || 0;
+        const currentWpm = Math.round(wordsTyped / safeTimeElapsed) || 0;
         setWpm(currentWpm);
         setWpmHistory((prev) => [
           ...prev,
@@ -299,7 +349,16 @@ const RaceRoom = () => {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [text, userInput, startTime, isFinished, userId, roomId]);
+  }, [
+    text,
+    userInput,
+    startTime,
+    isFinished,
+    userId,
+    roomId,
+    countdown,
+    gameData,
+  ]);
 
   // Update cursor position when input changes
   useEffect(() => {
@@ -318,9 +377,11 @@ const RaceRoom = () => {
     }
   }, [userInput]);
 
-  // Update the game state effect
+  // Update the game state effect to handle voting state
   useEffect(() => {
     if (!gameData) return;
+
+    console.log("Game status changed to:", gameData.status);
 
     // Reset local state when game returns to waiting
     if (gameData.status === "waiting") {
@@ -329,11 +390,31 @@ const RaceRoom = () => {
 
     // Handle countdown
     if (gameData.status === "countdown" && gameData.countdownStartedAt) {
+      // Check if there are at least 2 connected players before starting countdown
+      const connectedPlayers = Object.values(gameData.players).filter(
+        (player) => player.connected
+      );
+
+      if (connectedPlayers.length < 2) {
+        console.log(
+          "Not enough players to start countdown, returning to waiting state"
+        );
+        updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
+          status: "waiting",
+        }).catch((error) => {
+          console.error("Error updating game status:", error);
+        });
+        return;
+      }
+
+      // Reset game state at the start of countdown
+      resetGame();
+
       const countdownDuration = 3; // 3 seconds countdown
       const countdownEnd =
         (gameData.countdownStartedAt as any).toMillis() +
         countdownDuration * 1000;
-      setStartTime(countdownEnd);
+      // Don't set startTime during countdown - it will be set when the race begins
       const timeLeft = Math.ceil((countdownEnd - Date.now()) / 1000);
 
       if (timeLeft > 0) {
@@ -345,13 +426,124 @@ const RaceRoom = () => {
           if (newTimeLeft <= 0) {
             clearInterval(timer);
             setCountdown(0); // Set to 0 for "GO!" animation
+            // Set startTime when the race actually begins
+            setStartTime(Date.now());
             updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
               status: "racing",
               startTime: serverTimestamp(),
             });
           }
         }, 1000);
+
         return () => clearInterval(timer);
+      }
+    }
+
+    // Handle voting state
+    if (gameData.status === "voting") {
+      console.log("Handling voting state");
+
+      // Check if this is a ranked game (should not happen, but just in case)
+      if ("ranked" in gameData) {
+        console.error("Voting state detected for a ranked game");
+        return;
+      }
+
+      // Check if there are at least 2 connected players
+      const connectedPlayers = Object.values(gameData.players).filter(
+        (player) => player.connected
+      );
+
+      if (connectedPlayers.length < 2) {
+        console.log(
+          "Less than 2 connected players during voting, returning to waiting state"
+        );
+        // Return to waiting state instead of continuing with voting
+        updateDoc(doc(getFirestore(), "gameRooms", roomId!), {
+          status: "waiting",
+        }).catch((error) => {
+          console.error("Error updating game status:", error);
+        });
+        return;
+      }
+
+      // Check if all connected players have voted
+      const allPlayersVoted = connectedPlayers.every((player) => player.vote);
+
+      if (allPlayersVoted && connectedPlayers.length >= 2) {
+        console.log("All players have voted, ending voting early");
+        handleVotingEnd();
+        return;
+      }
+
+      // Use clientVotingEndTime for client-side calculations if available
+      if (gameData.clientVotingEndTime) {
+        console.log("Using clientVotingEndTime:", gameData.clientVotingEndTime);
+
+        const votingEnd = gameData.clientVotingEndTime;
+        const timeLeft = Math.ceil((votingEnd - Date.now()) / 1000);
+
+        if (timeLeft > 0) {
+          const timer = setInterval(() => {
+            const newTimeLeft = Math.ceil((votingEnd - Date.now()) / 1000);
+
+            if (newTimeLeft <= 0) {
+              clearInterval(timer);
+              handleVotingEnd();
+            }
+          }, 1000);
+
+          return () => clearInterval(timer);
+        } else {
+          // If voting time has already ended, handle it immediately
+          handleVotingEnd();
+        }
+      } else if (gameData.votingEndTime) {
+        // Fallback to votingEndTime if clientVotingEndTime is not available
+        console.log("Falling back to votingEndTime:", gameData.votingEndTime);
+
+        // Handle both JavaScript timestamps (numbers) and Firestore Timestamp objects
+        let votingEnd: number;
+
+        try {
+          if (typeof gameData.votingEndTime === "number") {
+            // It's already a JavaScript timestamp in milliseconds
+            votingEnd = gameData.votingEndTime;
+          } else {
+            // Try to use toMillis() if it's a Firestore Timestamp
+            // @ts-ignore - Ignore type checking for this line
+            const toMillis = gameData.votingEndTime.toMillis;
+            if (typeof toMillis === "function") {
+              // @ts-ignore - Ignore type checking for this line
+              votingEnd = gameData.votingEndTime.toMillis();
+            } else {
+              // Fallback - convert to a Date and get the time
+              votingEnd = new Date(gameData.votingEndTime as any).getTime();
+            }
+          }
+        } catch (error) {
+          // Final fallback - use current time plus 15 seconds if all else fails
+          console.error("Error parsing votingEndTime:", error);
+          votingEnd = Date.now() + 15000;
+        }
+
+        const timeLeft = Math.ceil((votingEnd - Date.now()) / 1000);
+
+        if (timeLeft > 0) {
+          const timer = setInterval(() => {
+            const newTimeLeft = Math.ceil((votingEnd - Date.now()) / 1000);
+
+            if (newTimeLeft <= 0) {
+              clearInterval(timer);
+              handleVotingEnd();
+            }
+          }, 1000);
+
+          return () => clearInterval(timer);
+        } else {
+          // If voting time has already ended, handle it immediately
+          handleVotingEnd();
+        }
       }
     }
 
@@ -360,6 +552,152 @@ const RaceRoom = () => {
       setIsFinished(true);
     }
   }, [gameData]);
+
+  // Function to handle the end of voting
+  const handleVotingEnd = async () => {
+    if (!roomId || !gameData) {
+      console.error("Missing roomId or gameData for handling voting end");
+      return;
+    }
+
+    try {
+      console.log("Handling voting end for room:", roomId);
+
+      // Check if this is a ranked game (should not happen, but just in case)
+      if ("ranked" in gameData) {
+        console.error("Voting end handler called for a ranked game");
+        return;
+      }
+
+      // CRITICAL: Get the latest game data to ensure we have the most up-to-date player connection status
+      const db = getFirestore();
+      const roomRef = doc(db, "gameRooms", roomId);
+      const roomSnapshot = await getDoc(roomRef);
+
+      if (!roomSnapshot.exists()) {
+        console.error("Room no longer exists");
+        return;
+      }
+
+      const latestGameData = roomSnapshot.data() as GameData;
+
+      // Check if there are at least 2 connected players using the latest data
+      const connectedPlayers = Object.values(latestGameData.players).filter(
+        (player) => player.connected
+      );
+
+      console.log(
+        `Connected players at voting end: ${connectedPlayers.length}`
+      );
+
+      if (connectedPlayers.length < 2) {
+        console.log(
+          "Less than 2 connected players, returning to waiting state"
+        );
+        // Return to waiting state instead of starting a new race
+        await updateDoc(roomRef, {
+          status: "waiting",
+        });
+        return;
+      }
+
+      // Count votes for each topic
+      const votes: { [topic: string]: number } = {};
+
+      // Use the latest game data to count votes
+      Object.values(latestGameData.players).forEach((player) => {
+        if (player.vote && player.connected) {
+          votes[player.vote] = (votes[player.vote] || 0) + 1;
+        }
+      });
+
+      console.log("Vote counts:", votes);
+
+      // Find the winning topic (the one with the most votes)
+      let winningTopic = "";
+      let maxVotes = 0;
+
+      for (const [topic, count] of Object.entries(votes)) {
+        if (count > maxVotes) {
+          maxVotes = count;
+          winningTopic = topic;
+        }
+      }
+
+      // If there's a tie or no votes, pick a random topic from the options
+      if (maxVotes === 0 || !winningTopic) {
+        console.log("No clear winner, selecting random topic");
+        const options = latestGameData.topicOptions || [];
+        if (options.length > 0) {
+          winningTopic = options[Math.floor(Math.random() * options.length)];
+        } else {
+          // Fallback to a default topic if no options are available
+          winningTopic = "programming";
+        }
+      }
+
+      console.log("Winning topic:", winningTopic);
+
+      // Generate new text based on the winning topic
+      console.log("Generating text for topic:", winningTopic);
+      let newText;
+      try {
+        // Properly await the result from generateTextByTopic
+        newText = await generateTextByTopic(winningTopic);
+        console.log("Successfully generated text for topic:", winningTopic);
+      } catch (error) {
+        console.error("Error generating text for topic:", error);
+        // Fallback to a default text if text generation fails
+        newText =
+          "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!";
+      }
+
+      // Update the game room with the new text and reset to countdown state
+      await updateDoc(roomRef, {
+        status: "countdown",
+        text: newText,
+        countdownStartedAt: serverTimestamp(),
+        selectedTopic: winningTopic,
+        // Reset player progress
+        ...Object.fromEntries(
+          Object.keys(latestGameData.players).map((playerId) => [
+            `players.${playerId}.progress`,
+            0,
+          ])
+        ),
+        ...Object.fromEntries(
+          Object.keys(latestGameData.players).map((playerId) => [
+            `players.${playerId}.wpm`,
+            0,
+          ])
+        ),
+        ...Object.fromEntries(
+          Object.keys(latestGameData.players).map((playerId) => [
+            `players.${playerId}.accuracy`,
+            100,
+          ])
+        ),
+        ...Object.fromEntries(
+          Object.keys(latestGameData.players).map((playerId) => [
+            `players.${playerId}.finished`,
+            false,
+          ])
+        ),
+      });
+
+      console.log("Started new race with topic:", winningTopic);
+    } catch (error) {
+      console.error("Error handling voting end:", error);
+      // If there's an error, try to return to waiting state as a fallback
+      try {
+        await updateDoc(doc(getFirestore(), "gameRooms", roomId), {
+          status: "waiting",
+        });
+      } catch (fallbackError) {
+        console.error("Error returning to waiting state:", fallbackError);
+      }
+    }
+  };
 
   // Add effect to check if all players are ready and start countdown
   useEffect(() => {
@@ -387,8 +725,11 @@ const RaceRoom = () => {
   useEffect(() => {
     if (!userId || !roomId || !gameData || gameData.status !== "racing") return;
 
+    // Skip updates during countdown
+    if (countdown !== null && countdown > 0) return;
+
     throttleUpdate();
-  }, [userInput, wpm, accuracy]);
+  }, [userInput, wpm, accuracy, countdown, userId, roomId, gameData]);
 
   const toggleReady = async () => {
     if (!userId || !roomId) return;
@@ -418,12 +759,20 @@ const RaceRoom = () => {
       extra: 0,
       missed: 0,
     });
+    // Reset cursor position
+    setCursorPosition({ x: 0, y: 0 });
   };
 
   // Add a dedicated handler for Alt+Delete/Backspace
   useEffect(() => {
     const handleAltDelete = (e: KeyboardEvent) => {
       if (isFinished) return;
+
+      // Prevent typing during countdown
+      if (countdown !== null && countdown > 0) return;
+
+      // Only allow typing during racing mode
+      if (gameData?.status !== "racing") return;
 
       // Check for Alt+Delete or Alt+Backspace
       if ((e.key === "Delete" || e.key === "Backspace") && e.altKey) {
@@ -490,10 +839,16 @@ const RaceRoom = () => {
 
     window.addEventListener("keydown", handleAltDelete, true); // Use capture phase
     return () => window.removeEventListener("keydown", handleAltDelete, true);
-  }, [userInput, isFinished, text]);
+  }, [userInput, isFinished, text, countdown, gameData]);
 
   // Update character stats when userInput changes
   useEffect(() => {
+    // Skip calculations during countdown
+    if (countdown !== null && countdown > 0) return;
+
+    // Only update stats during racing mode
+    if (gameData?.status !== "racing") return;
+
     // Calculate accuracy based on current stats
     const totalChars =
       charStats.correct + charStats.incorrect + charStats.extra;
@@ -506,7 +861,7 @@ const RaceRoom = () => {
       const currentWpm = Math.round(wordsTyped / timeElapsed) || 0;
       setWpm(currentWpm);
     }
-  }, [userInput, charStats, startTime]);
+  }, [userInput, charStats, startTime, countdown, gameData]);
 
   // Function to get cursor coordinates for a specific position in the text
   const getCursorCoordinates = (
@@ -601,6 +956,36 @@ const RaceRoom = () => {
     setOpponentCursors(newOpponentCursors);
   }, [gameData, text, userId]);
 
+  // Add a new useEffect hook to monitor connected players during voting
+  useEffect(() => {
+    if (!gameData || !roomId) return;
+
+    // Only monitor during voting state
+    if (gameData.status !== "voting") return;
+
+    // Check if this is a ranked game (should not happen, but just in case)
+    if ("ranked" in gameData) return;
+
+    // Count connected players
+    const connectedPlayers = Object.values(gameData.players).filter(
+      (player) => player.connected
+    );
+
+    // If there are less than 2 connected players, cancel voting and return to waiting state
+    if (connectedPlayers.length < 2) {
+      console.log(
+        "Player count dropped below 2 during voting, canceling voting process"
+      );
+
+      // Return to waiting state
+      updateDoc(doc(getFirestore(), "gameRooms", roomId), {
+        status: "waiting",
+      }).catch((error) => {
+        console.error("Error updating game status:", error);
+      });
+    }
+  }, [gameData, roomId]);
+
   return (
     <div className="flex flex-col items-center min-h-screen p-4">
       {/* Debug info */}
@@ -646,6 +1031,9 @@ const RaceRoom = () => {
                       style={{ width: `${player.progress || 0}%` }}
                     />
                   </div>
+                )}
+                {gameData.status === "voting" && player.vote && (
+                  <span className="text-yellow-400">(Voted)</span>
                 )}
               </div>
             ))}
@@ -775,6 +1163,14 @@ const RaceRoom = () => {
             })}
           </div>
         </div>
+      )}
+
+      {/* Topic voting screen */}
+      {gameData?.status === "voting" && gameData && (
+        <TopicVotingScreen
+          gameData={gameData}
+          roomId={roomId!}
+        />
       )}
 
       {/* Winner screen and Stats */}
