@@ -69,16 +69,23 @@ interface Player {
   accuracy?: number;
   progress?: number;
   ready?: boolean;
+  finished?: boolean;
+  vote?: string; // The topic ID this player voted for
 }
 
 interface GameData {
   players: { [key: string]: Player };
-  status: "waiting" | "countdown" | "racing" | "finished";
+  status: "waiting" | "countdown" | "racing" | "finished" | "voting";
   text: string;
   startTime?: number;
   countdownStartedAt?: number;
   winner?: string;
   timeLimit: number; // in seconds
+  // New voting-related fields
+  topicOptions?: string[]; // List of topics to vote on
+  votingEndTime?: number | any; // Timestamp when voting ends (server-side)
+  clientVotingEndTime?: number; // Client-side timestamp for voting end time calculations
+  selectedTopic?: string; // The topic that was selected after voting
 }
 
 export type { UserData, GameResult, GameData, Player };

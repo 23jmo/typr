@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import StatsOverview from "../StatsOverview";
 import { GameData } from "../../types";
 import { useUser } from "../../contexts/UserContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   FaTrophy,
   FaHome,
@@ -11,10 +11,20 @@ import {
   FaArrowDown,
   FaHistory,
   FaFire,
+  FaVoteYea,
 } from "react-icons/fa";
 import { rankedIcons } from "../../types/ranks";
 import "./FinishedScreen.css";
 import { userStatsService } from "../../services/firebase";
+import {
+  getFirestore,
+  updateDoc,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { TOPIC_DESCRIPTIONS } from "../../constants/topicDescriptions";
 
 interface RankedGameData extends GameData {
   ranked: true;
@@ -55,6 +65,7 @@ const FinishedScreen = ({
   const { userData, refreshUserData } = useUser();
   const userId = userData?.uid;
   const navigate = useNavigate();
+  const { roomId } = useParams<{ roomId: string }>();
   const isWinner = gameData.winner === userId;
 
   // Stats update tracking
@@ -214,6 +225,84 @@ const FinishedScreen = ({
       setProgressWidth(newProgress);
     }, 500);
   }, [newProgress]);
+
+  // Add function to start the next topic voting
+  const startNextTopicVoting = async () => {
+    console.log("Starting next topic voting for room:", roomId);
+
+    if (!roomId) {
+      console.error("No roomId found for next topic voting");
+      return;
+    }
+
+    try {
+      const db = getFirestore();
+      const roomRef = doc(db, "gameRooms", roomId);
+
+      // Check if the room document exists
+      const roomDoc = await getDoc(roomRef);
+
+      // Select 4 random topics from the TOPIC_DESCRIPTIONS object
+      const allTopics = Object.keys(TOPIC_DESCRIPTIONS);
+      const randomTopics: string[] = [];
+
+      // Ensure we get 4 unique topics
+      while (randomTopics.length < 4) {
+        const randomIndex = Math.floor(Math.random() * allTopics.length);
+        const topic = allTopics[randomIndex];
+
+        if (!randomTopics.includes(topic)) {
+          randomTopics.push(topic);
+        }
+      }
+
+      // Set voting end time to 15 seconds from now
+      // Use Firestore timestamp instead of JavaScript timestamp
+      const votingEndTime = serverTimestamp();
+      const clientVotingEndTime = Date.now() + 15000; // For client-side calculations
+
+      if (!roomDoc.exists()) {
+        console.log("Room document doesn't exist. Recreating it for voting.");
+
+        // Recreate the room with the current players
+        const players = gameData.players;
+
+        // Create a new room document with voting state
+        await setDoc(roomRef, {
+          status: "voting",
+          players: players,
+          topicOptions: randomTopics,
+          votingEndTime: votingEndTime,
+          clientVotingEndTime: clientVotingEndTime, // Add client-side timestamp
+          text: gameData.text || "",
+          timeLimit: gameData.timeLimit || 60,
+          createdAt: serverTimestamp(),
+        });
+
+        console.log("Successfully recreated room for voting");
+      } else {
+        // Update the existing game room status to "voting"
+        await updateDoc(roomRef, {
+          status: "voting",
+          topicOptions: randomTopics,
+          votingEndTime: votingEndTime,
+          clientVotingEndTime: clientVotingEndTime, // Add client-side timestamp
+          // Reset player votes
+          ...Object.fromEntries(
+            Object.keys(gameData.players).map((playerId) => [
+              `players.${playerId}.vote`,
+              null,
+            ])
+          ),
+        });
+
+        console.log("Successfully updated existing room to voting state");
+      }
+    } catch (error) {
+      console.error("Error starting next topic voting:", error);
+      alert("Error starting next topic voting. Please try again.");
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-[#1e1e1e] flex flex-col items-center justify-center p-6 overflow-y-auto">
@@ -382,9 +471,16 @@ const FinishedScreen = ({
           />
         </div>
 
-        <div className="flex justify-center mt-8">
+        <div className="flex justify-center mt-8 gap-4">
           <button
             className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-8 py-3 rounded-lg transition-all hover:shadow-lg"
+            onClick={startNextTopicVoting}
+          >
+            <FaVoteYea /> Pick Next Topic
+          </button>
+
+          <button
+            className="flex items-center gap-2 bg-[#333333] hover:bg-[#444444] text-white font-bold px-8 py-3 rounded-lg transition-all hover:shadow-lg"
             onClick={() => navigate("/")}
           >
             <FaHome /> Back to Home
