@@ -88,4 +88,15 @@ interface GameData {
   selectedTopic?: string; // The topic that was selected after voting
 }
 
+// Define match data type
+export interface MatchData {
+  opponent: string;
+  timeAgo: string;
+  userWpm: number;
+  opponentWpm: number;
+  isWin: boolean;
+  eloChange: number;
+  accuracy?: number; // Optional accuracy field
+}
+
 export type { UserData, GameResult, GameData, Player };

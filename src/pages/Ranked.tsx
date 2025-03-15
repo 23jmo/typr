@@ -3,6 +3,8 @@ import { rankedIcons } from "../types/ranks";
 import { useUser } from "../contexts/UserContext";
 import RankedHomePage from "../components/ranked/RankedHomePage";
 import MatchmakingScreen from "../components/ranked/MatchmakingScreen";
+import PerformanceGraph from "../components/ranked/PerformanceGraph";
+import { MatchData } from "../types";
 import { FaClock, FaUsers, FaBolt, FaChevronRight } from "react-icons/fa";
 
 // Define rank key type for type safety
@@ -109,6 +111,20 @@ const Ranked = () => {
     { name: "FastFingers", rank: "Platinum", wpm: 115 }
   ];
 
+  // Mock data for recent matches
+  const recentMatches: MatchData[] = [
+    { opponent: "FastFingers", timeAgo: "25 min ago", userWpm: 92, opponentWpm: 88, isWin: true, eloChange: 12, accuracy: 96.4 },
+    { opponent: "SwiftKeys", timeAgo: "1 hour ago", userWpm: 87, opponentWpm: 95, isWin: false, eloChange: -8, accuracy: 94.2 },
+    { opponent: "TypeMaster99", timeAgo: "2 hours ago", userWpm: 94, opponentWpm: 89, isWin: true, eloChange: 14, accuracy: 97.8 },
+    { opponent: "KeyboardWarrior", timeAgo: "3 hours ago", userWpm: 85, opponentWpm: 92, isWin: false, eloChange: -10, accuracy: 93.5 },
+    { opponent: "SpeedDemon", timeAgo: "5 hours ago", userWpm: 90, opponentWpm: 98, isWin: false, eloChange: -15, accuracy: 95.1 },
+    { opponent: "QuickTyper", timeAgo: "8 hours ago", userWpm: 96, opponentWpm: 91, isWin: true, eloChange: 11, accuracy: 98.2 },
+    { opponent: "WordMaster", timeAgo: "10 hours ago", userWpm: 89, opponentWpm: 84, isWin: true, eloChange: 9, accuracy: 94.7 },
+    { opponent: "RapidKeys", timeAgo: "12 hours ago", userWpm: 91, opponentWpm: 87, isWin: true, eloChange: 10, accuracy: 96.9 },
+    { opponent: "TypingPro", timeAgo: "1 day ago", userWpm: 88, opponentWpm: 93, isWin: false, eloChange: -11, accuracy: 95.3 },
+    { opponent: "KeyboardKing", timeAgo: "1 day ago", userWpm: 97, opponentWpm: 92, isWin: true, eloChange: 13, accuracy: 97.5 }
+  ];
+
   // Calculate win rate safely
   const calculateWinRate = () => {
     const wins = userData?.stats?.overall?.totalWins || 0;
@@ -136,15 +152,15 @@ const Ranked = () => {
       {matchMaking ? (
         <MatchmakingScreen />
       ) : (
-        <div className="max-w-7xl mx-auto p-4 pt-20 pb-16">
+        <div className="max-w-7xl mx-auto p-4 pt-20 pb-8">
           {/* Header Section */}
           <div className="mb-8">
-            <h1 className="text-4xl font-bold text-[#d1d0c5]">Ranked Mode</h1>
+            <h1 className="text-3xl font-bold text-[#d1d0c5]">Ranked Mode</h1>
             <p className="text-[#646669]">Compete against others and climb the leaderboard</p>
           </div>
 
           <div className="flex flex-col lg:flex-row gap-6">
-            <div className="w-full lg:w-2/3">
+            <div className="w-full lg:w-3/4">
               {/* Quick Match Section */}
               <div className="bg-[#2c2e31] rounded-lg p-6 mb-6">
                 <h2 className="text-2xl font-bold mb-2 text-[#d1d0c5]">Quick Match</h2>
@@ -238,31 +254,11 @@ const Ranked = () => {
                 </div>
               </div>
               
-              {/* Recent Matches Section */}
-              <div className="mt-6">
-                <div className="flex gap-4 mb-4">
-                  <button className="bg-[#2c2e31] px-6 py-2 rounded-lg text-[#d1d0c5] font-medium">Recent Matches</button>
-                  <button className="text-[#646669] px-6 py-2 hover:text-[#d1d0c5] transition-colors">Detailed Stats</button>
-                </div>
-                
-                {/* Recent Match Item */}
-                <div className="bg-[#2c2e31] rounded-lg p-4 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="bg-[#323437] text-[#d1d0c5] px-3 py-1 rounded-md mr-4">Win</div>
-                    <div>
-                      <p className="font-bold text-[#d1d0c5]">FastFingers</p>
-                      <p className="text-sm text-[#646669]">25 min ago</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-[#d1d0c5]">92 WPM <span className="text-sm text-[#646669]">(88)</span></p>
-                    <p className="text-sm text-green-400">+12</p>
-                  </div>
-                </div>
-              </div>
+              {/* Match History & Performance Section */}
+              
             </div>
             
-            <div className="w-full lg:w-1/3">
+            <div className="w-full lg:w-1/4">
               {/* User Rank Display */}
               <div className="bg-[#2c2e31] rounded-lg p-4 mb-6">
                 <div className="flex justify-between items-center mb-3">
@@ -337,6 +333,49 @@ const Ranked = () => {
               </div>
             </div>
           </div>
+          <div className="mt-3">
+                
+                {/* Flex container for matches and graph */}
+                <div className="flex flex-col md:flex-row gap-6">
+                  {/* Recent Matches List without scrolling */}
+                  <div className="w-full md:w-[38%]">
+                    <h3 className="text-xl font-bold mb-2 text-[#d1d0c5]">Recent Matches</h3>
+                    <div className="space-y-3">
+                      {recentMatches.map((match, index) => (
+                        <div key={index} className="bg-[#2c2e31] rounded-lg p-4 flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className={`${match.isWin ? 'bg-[#323437]' : 'bg-[#3a3a3c]'} text-[#d1d0c5] px-3 py-1 rounded-md mr-4`}>
+                              {match.isWin ? 'Win' : 'Loss'}
+                            </div>
+                            <div>
+                              <p className="font-bold text-[#d1d0c5]">{match.opponent}</p>
+                              <p className="text-sm text-[#646669]">{match.timeAgo}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-[#d1d0c5]">
+                              {match.userWpm} WPM <span className="text-sm text-[#646669]">({match.opponentWpm})</span>
+                            </p>
+                            <p className={`text-sm ${match.isWin ? 'text-green-400' : 'text-red-400'}`}>
+                              {match.isWin ? '+' : ''}{match.eloChange}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Performance Graph with fixed height and overflow control */}
+                  <div className="w-full md:w-[62%] bg-[#2c2e31] rounded-lg p-6 h-[500px] flex flex-col relative">
+                    <h3 className="text-xl font-bold mb-2 text-[#d1d0c5]">Performance Graph</h3>
+                    <p className="text-[#646669] mb-4">Your typing performance over time</p>
+                    
+                    <div className="flex-grow overflow-hidden">
+                      <PerformanceGraph matches={recentMatches} />
+                    </div>
+                  </div>
+                </div>
+              </div>
         </div>
       )}
     </div>
