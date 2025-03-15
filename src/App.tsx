@@ -54,7 +54,7 @@ const AppRoutes = () => {
   return (
     <>
       <Header />
-      <div className="pt-14">
+      <div className="pt-0">
         <Routes>
           <Route path="/signin" element={<Navigate to="/" />} />
           <Route path="/" element={<Home />} />
