@@ -81,11 +81,23 @@ interface GameData {
   countdownStartedAt?: number;
   winner?: string;
   timeLimit: number; // in seconds
+  maxPlayers?: number; // Maximum number of players allowed in the game
   // New voting-related fields
   topicOptions?: string[]; // List of topics to vote on
   votingEndTime?: number | any; // Timestamp when voting ends (server-side)
   clientVotingEndTime?: number; // Client-side timestamp for voting end time calculations
   selectedTopic?: string; // The topic that was selected after voting
+}
+
+// Define match data type
+export interface MatchData {
+  opponent: string;
+  timeAgo: string;
+  userWpm: number;
+  opponentWpm: number;
+  isWin: boolean;
+  eloChange: number;
+  accuracy?: number; // Optional accuracy field
 }
 
 export type { UserData, GameResult, GameData, Player };

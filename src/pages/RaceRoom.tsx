@@ -17,6 +17,7 @@ import { GameData, Player } from "../types";
 import { useUser } from "../contexts/UserContext";
 import CountdownAnimation from "../components/CountdownAnimation";
 import TopicVotingScreen from "../components/TopicVotingScreen";
+import RaceLobby from "../components/RaceLobby";
 import { generateTextByTopic } from "../utilities/random-text";
 
 const SAMPLE_TEXT =
@@ -43,7 +44,7 @@ const RaceRoom = () => {
   const username = userData?.username || "Anonymous";
   const userId = userData?.uid;
 
-  const [text] = useState(SAMPLE_TEXT);
+  const [text, setText] = useState(SAMPLE_TEXT);
   const [userInput, setUserInput] = useState("");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [wpm, setWpm] = useState(0);
@@ -83,6 +84,21 @@ const RaceRoom = () => {
       return;
     }
   }, [userData, navigate]);
+
+  // Synchronize local ready state with Firestore data
+  useEffect(() => {
+    if (gameData && userId && gameData.players && gameData.players[userId]) {
+      setReady(gameData.players[userId].ready || false);
+    }
+  }, [gameData, userId]);
+
+  // Update text state when gameData changes
+  useEffect(() => {
+    if (gameData && gameData.text) {
+      console.log("Updating text from gameData:", gameData.text.substring(0, 50) + "...");
+      setText(gameData.text);
+    }
+  }, [gameData]);
 
   // Function to update player data
   const throttleUpdate = () => {
@@ -703,14 +719,19 @@ const RaceRoom = () => {
   useEffect(() => {
     if (!gameData || !roomId || gameData.status !== "waiting") return;
 
-    // Check if all players are ready
-    const allPlayersReady = Object.values(gameData.players).every(
-      (player) => player.ready && player.connected
+    // Count connected players
+    const connectedPlayers = Object.values(gameData.players).filter(
+      (player) => player.connected
     );
 
-    // If all players are ready, start the countdown
-    if (allPlayersReady) {
-      console.log("All players ready, starting countdown");
+    // Check if all players are ready
+    const allPlayersReady = connectedPlayers.every(
+      (player) => player.ready
+    );
+
+    // If all players are ready AND there are at least 2 connected players, start the countdown
+    if (allPlayersReady && connectedPlayers.length >= 2) {
+      console.log("All players ready and minimum player count met, starting countdown");
       const db = getFirestore();
       updateDoc(doc(db, "gameRooms", roomId), {
         status: "countdown",
@@ -994,17 +1015,10 @@ const RaceRoom = () => {
         {gameData?.status}
       </div>
 
-      <div className="fixed top-4 left-4 right-4">
-        <div className="flex justify-between max-w-md mx-auto">
-          <div className="text-xl">WPM: {wpm}</div>
-          <div className="text-xl">Accuracy: {accuracy}%</div>
-        </div>
-      </div>
-
-      {/* Player list */}
-      <div className="fixed top-20 left-4 space-y-2">
-        {gameData &&
-          Object.entries(gameData.players)
+      {/* Player list - hide when in waiting state */}
+      {gameData && gameData.status !== "waiting" && (
+        <div className="fixed top-20 left-4 space-y-2">
+          {Object.entries(gameData.players)
             .sort((a, b) => {
               const aTime = a[1].joinedAt?.toMillis?.() || 0;
               const bTime = b[1].joinedAt?.toMillis?.() || 0;
@@ -1037,18 +1051,18 @@ const RaceRoom = () => {
                 )}
               </div>
             ))}
-      </div>
+        </div>
+      )}
 
       {/* Game status */}
       {gameData?.status === "waiting" && (
-        <button
-          onClick={toggleReady}
-          className={`px-4 py-2 rounded ${
-            gameData.players[username]?.ready ? "bg-green-500" : "bg-yellow-500"
-          }`}
-        >
-          {gameData.players[username]?.ready ? "Ready!" : "Click when ready"}
-        </button>
+        <RaceLobby
+          gameData={gameData}
+          roomId={roomId || ""}
+          userId={userId || ""}
+          username={username}
+          onToggleReady={toggleReady}
+        />
       )}
 
       {/* Show countdown when in countdown state or when just starting racing (for GO! animation) */}

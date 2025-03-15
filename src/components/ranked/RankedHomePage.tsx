@@ -17,7 +17,7 @@ const RankedHomePage = ({ onMatchmakingStarted }: RankedHomePageProps) => {
     ) || rankedIcons.plastic;
 
   return (
-    <div className="max-w-5xl mx-auto p-8 mt-20">
+    <div className="max-w-5xl mx-auto p-8 pt-24">
       <div className="flex items-center justify-center">
         <h1 className="text-6xl font-bold text-[#ffffff] mb-4">
           {userData?.username}
