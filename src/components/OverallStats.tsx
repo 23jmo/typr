@@ -4,7 +4,7 @@ import { useUser } from '../contexts/UserContext'
 const OverallStats = () => {
   const { userData } = useUser();
   return (
-     <div className="max-w-5xl mx-auto p-8">
+     <div className="max-w-5xl mx-auto p-8 pt-24">
       {/* User Header */}
       <div className="flex items-center gap-4 mb-12">
         <div className="w-16 h-16 rounded-full bg-[#2c2e31] flex items-center justify-center">

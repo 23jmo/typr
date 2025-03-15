@@ -19,3 +19,13 @@ html, body {
   position: fixed;
   width: 100%;
 }
+
+@layer utilities {
+  .shadow-glow {
+    box-shadow: 0 0 8px 0 rgba(255, 255, 255, 0.3);
+  }
+  
+  .text-shadow {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  }
+}
