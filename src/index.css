@@ -14,9 +14,9 @@ body {
 
 html, body {
   background-color: #323437;
-  overflow: hidden;
-  height: 100%;
-  position: fixed;
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
   width: 100%;
 }
 
