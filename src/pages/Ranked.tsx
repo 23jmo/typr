@@ -104,26 +104,44 @@ const Ranked = () => {
 
   // Mock data for top racers
   const topRacers = [
-    { name: "SpeedDemon", rank: "Master", wpm: 145 },
-    { name: "TypeMaster99", rank: "Diamond", wpm: 132 },
-    { name: "KeyboardWarrior", rank: "Diamond", wpm: 128 },
+    { name: "TypeMaster99", rank: "CherryMX", wpm: 145 },
+    { name: "SpeedDemon", rank: "Diamond", wpm: 135 },
+    { name: "KeyboardWarrior", rank: "Diamond", wpm: 130 },
     { name: "SwiftKeys", rank: "Platinum", wpm: 120 },
     { name: "FastFingers", rank: "Platinum", wpm: 115 }
   ];
 
-  // Mock data for recent matches
-  const recentMatches: MatchData[] = [
-    { opponent: "FastFingers", timeAgo: "25 min ago", userWpm: 92, opponentWpm: 88, isWin: true, eloChange: 12, accuracy: 96.4 },
-    { opponent: "SwiftKeys", timeAgo: "1 hour ago", userWpm: 87, opponentWpm: 95, isWin: false, eloChange: -8, accuracy: 94.2 },
-    { opponent: "TypeMaster99", timeAgo: "2 hours ago", userWpm: 94, opponentWpm: 89, isWin: true, eloChange: 14, accuracy: 97.8 },
-    { opponent: "KeyboardWarrior", timeAgo: "3 hours ago", userWpm: 85, opponentWpm: 92, isWin: false, eloChange: -10, accuracy: 93.5 },
-    { opponent: "SpeedDemon", timeAgo: "5 hours ago", userWpm: 90, opponentWpm: 98, isWin: false, eloChange: -15, accuracy: 95.1 },
-    { opponent: "QuickTyper", timeAgo: "8 hours ago", userWpm: 96, opponentWpm: 91, isWin: true, eloChange: 11, accuracy: 98.2 },
-    { opponent: "WordMaster", timeAgo: "10 hours ago", userWpm: 89, opponentWpm: 84, isWin: true, eloChange: 9, accuracy: 94.7 },
-    { opponent: "RapidKeys", timeAgo: "12 hours ago", userWpm: 91, opponentWpm: 87, isWin: true, eloChange: 10, accuracy: 96.9 },
-    { opponent: "TypingPro", timeAgo: "1 day ago", userWpm: 88, opponentWpm: 93, isWin: false, eloChange: -11, accuracy: 95.3 },
-    { opponent: "KeyboardKing", timeAgo: "1 day ago", userWpm: 97, opponentWpm: 92, isWin: true, eloChange: 13, accuracy: 97.5 }
-  ];
+  // Format timestamp to "X time ago" format
+  const formatTimeAgo = (timestamp: number) => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 60) return `${minutes} min ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    
+    const days = Math.floor(hours / 24);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  };
+
+  // Use actual data from user document or fallback to empty array
+  const recentMatches: MatchData[] = userData?.recentMatches ? 
+    userData.recentMatches.map(match => ({
+      opponent: match.opponentName || "Unknown",
+      timeAgo: formatTimeAgo(match.timestamp || Date.now()),
+      userWpm: match.userWpm || 0,
+      opponentWpm: match.opponentWpm || 0,
+      isWin: match.isWin || false,
+      eloChange: match.eloChange || 0,
+      accuracy: match.accuracy || 0
+    })) : [];
+
+  // Debug log to check if recentMatches is being populated correctly
+  console.log("userData:", userData);
+  console.log("userData.recentMatches:", userData?.recentMatches);
+  console.log("recentMatches:", recentMatches);
 
   // Calculate win rate safely
   const calculateWinRate = () => {
@@ -338,42 +356,50 @@ const Ranked = () => {
                 {/* Flex container for matches and graph */}
                 <div className="flex flex-col md:flex-row gap-6">
                   {/* Recent Matches List without scrolling */}
-                  <div className="w-full md:w-[38%]">
+                  <div className={`w-full ${recentMatches.length > 0 ? 'md:w-[38%]' : ''}`}>
                     <h3 className="text-xl font-bold mb-2 text-[#d1d0c5]">Recent Matches</h3>
                     <div className="space-y-3">
-                      {recentMatches.map((match, index) => (
-                        <div key={index} className="bg-[#2c2e31] rounded-lg p-4 flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className={`${match.isWin ? 'bg-[#323437]' : 'bg-[#3a3a3c]'} text-[#d1d0c5] px-3 py-1 rounded-md mr-4`}>
-                              {match.isWin ? 'Win' : 'Loss'}
+                      {recentMatches && recentMatches.length > 0 ? (
+                        recentMatches.map((match, index) => (
+                          <div key={index} className="bg-[#2c2e31] rounded-lg p-4 flex items-center justify-between">
+                            <div className="flex items-center">
+                              <div className={`${match.isWin ? 'bg-[#323437]' : 'bg-[#3a3a3c]'} text-[#d1d0c5] px-3 py-1 rounded-md mr-4`}>
+                                {match.isWin ? 'Win' : 'Loss'}
+                              </div>
+                              <div>
+                                <p className="font-bold text-[#d1d0c5]">vs. {match.opponent}</p>
+                                <p className="text-sm text-[#646669]">{match.timeAgo}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-bold text-[#d1d0c5]">{match.opponent}</p>
-                              <p className="text-sm text-[#646669]">{match.timeAgo}</p>
+                            <div className="text-right">
+                              <p className="font-bold text-[#d1d0c5]">
+                                {match.userWpm} WPM <span className="text-sm text-[#646669]">({match.opponentWpm})</span>
+                              </p>
+                              <p className={`text-sm ${match.isWin ? 'text-green-400' : 'text-red-400'}`}>
+                                {match.isWin ? '+' : ''}{match.eloChange}
+                              </p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-[#d1d0c5]">
-                              {match.userWpm} WPM <span className="text-sm text-[#646669]">({match.opponentWpm})</span>
-                            </p>
-                            <p className={`text-sm ${match.isWin ? 'text-green-400' : 'text-red-400'}`}>
-                              {match.isWin ? '+' : ''}{match.eloChange}
-                            </p>
-                          </div>
+                        ))
+                      ) : (
+                        <div className="bg-[#2c2e31] rounded-lg p-6 flex items-center justify-center">
+                          <p className="text-[#646669]">No match history yet. Play some ranked games!</p>
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                   
-                  {/* Performance Graph with fixed height and overflow control */}
-                  <div className="w-full md:w-[62%] bg-[#2c2e31] rounded-lg p-6 h-[500px] flex flex-col relative">
-                    <h3 className="text-xl font-bold mb-2 text-[#d1d0c5]">Performance Graph</h3>
-                    <p className="text-[#646669] mb-4">Your typing performance over time</p>
-                    
-                    <div className="flex-grow overflow-hidden">
-                      <PerformanceGraph matches={recentMatches} />
+                  {/* Performance Graph with fixed height and overflow control - only show if there are matches */}
+                  {recentMatches && recentMatches.length > 0 && (
+                    <div className="w-full md:w-[62%] bg-[#2c2e31] rounded-lg p-6 h-[500px] flex flex-col relative">
+                      <h3 className="text-xl font-bold mb-2 text-[#d1d0c5]">Performance Graph</h3>
+                      <p className="text-[#646669] mb-4">Your typing performance over time</p>
+                      
+                      <div className="flex-grow overflow-hidden">
+                        <PerformanceGraph matches={recentMatches} />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
         </div>

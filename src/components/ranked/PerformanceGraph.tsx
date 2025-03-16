@@ -6,6 +6,15 @@ interface PerformanceGraphProps {
 }
 
 const PerformanceGraph: React.FC<PerformanceGraphProps> = ({ matches }) => {
+  // If no matches, display a message
+  if (!matches || matches.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <p className="text-[#646669] text-lg">No match history available yet. Play some ranked games to see your performance!</p>
+      </div>
+    );
+  }
+
   // State for tracking which point is being hovered
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
   // State for tooltip opacity animation
