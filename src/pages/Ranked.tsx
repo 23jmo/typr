@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { rankedIcons } from "../types/ranks";
 import { useUser } from "../contexts/UserContext";
 import RankedHomePage from "../components/ranked/RankedHomePage";
@@ -6,15 +6,111 @@ import MatchmakingScreen from "../components/ranked/MatchmakingScreen";
 import PerformanceGraph from "../components/ranked/PerformanceGraph";
 import { MatchData } from "../types";
 import { FaClock, FaUsers, FaBolt, FaChevronRight } from "react-icons/fa";
+import { leaderboardService } from "../services/firebase";
 
 // Define rank key type for type safety
 type RankKey = 'plastic' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'cherryMX';
+
+// Define the type for top racers
+interface TopRacer {
+  name: string;
+  rank: string;
+  wpm: number;
+  elo?: number;
+}
 
 const Ranked = () => {
   const [matchMaking, setMatchMaking] = useState(false);
   const [matchFound, setMatchFound] = useState(false);
   const [matchFinished, setMatchFinished] = useState(false);
   const { userData } = useUser();
+  const [topRacers, setTopRacers] = useState<TopRacer[]>([
+    { name: "TypeMaster99", rank: "CherryMX", wpm: 145 },
+    { name: "SpeedDemon", rank: "Diamond", wpm: 135 },
+    { name: "KeyboardWarrior", rank: "Diamond", wpm: 130 },
+    { name: "SwiftKeys", rank: "Platinum", wpm: 120 },
+    { name: "FastFingers", rank: "Platinum", wpm: 115 }
+  ]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardLastUpdated, setLeaderboardLastUpdated] = useState<string | null>(null);
+  const [updatingLeaderboard, setUpdatingLeaderboard] = useState(false);
+
+  // Fetch leaderboard data
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        setLeaderboardLoading(true);
+        const leaderboardData = await leaderboardService.getGlobalLeaderboard();
+        
+        if (leaderboardData && leaderboardData.topUsers && leaderboardData.topUsers.length > 0) {
+          // Transform data to match the UI format
+          const formattedData = leaderboardData.topUsers.map((user: any) => ({
+            name: user.username || "Anonymous",
+            rank: user.rank,
+            wpm: user.averageWPM || 0,
+            elo: user.elo
+          }));
+          
+          setTopRacers(formattedData);
+          
+          // Format the last updated date
+          if (leaderboardData.updatedAt) {
+            const updatedDate = new Date(leaderboardData.updatedAt);
+            setLeaderboardLastUpdated(updatedDate.toLocaleDateString());
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching leaderboard:", error);
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    };
+    
+    fetchLeaderboard();
+  }, []);
+
+  // Function to manually update the leaderboard
+  const handleUpdateLeaderboard = async () => {
+    try {
+      setUpdatingLeaderboard(true);
+      const result = await leaderboardService.updateLeaderboardNow();
+      
+      if (result.success) {
+        console.log("Leaderboard update successful, new data:", result);
+        
+        // Transform data to match the UI format
+        if (result.topUsers && result.topUsers.length > 0) {
+          const formattedData = result.topUsers.map((user: any) => ({
+            name: user.username || "Anonymous",
+            rank: user.rank,
+            wpm: user.averageWPM || 0,
+            elo: user.elo
+          }));
+          
+          console.log("Formatted data for UI:", formattedData);
+          setTopRacers(formattedData);
+          
+          // Format the last updated date
+          if (result.updatedAt) {
+            const updatedDate = new Date(result.updatedAt);
+            setLeaderboardLastUpdated(updatedDate.toLocaleDateString());
+          }
+        } else {
+          console.warn("No top users found in the result:", result);
+        }
+        
+        alert("Leaderboard updated successfully!");
+      } else {
+        console.error("Failed to update leaderboard:", result.error);
+        alert(`Failed to update leaderboard: ${result.error}`);
+      }
+    } catch (error) {
+      console.error("Error updating leaderboard:", error);
+      alert("An error occurred while updating the leaderboard");
+    } finally {
+      setUpdatingLeaderboard(false);
+    }
+  };
 
   // Function to determine user's rank and progress to next rank
   const getUserRankAndProgress = () => {
@@ -101,15 +197,6 @@ const Ranked = () => {
         return 'bg-[#e2b714]';
     }
   };
-
-  // Mock data for top racers
-  const topRacers = [
-    { name: "TypeMaster99", rank: "CherryMX", wpm: 145 },
-    { name: "SpeedDemon", rank: "Diamond", wpm: 135 },
-    { name: "KeyboardWarrior", rank: "Diamond", wpm: 130 },
-    { name: "SwiftKeys", rank: "Platinum", wpm: 120 },
-    { name: "FastFingers", rank: "Platinum", wpm: 115 }
-  ];
 
   // Format timestamp to "X time ago" format
   const formatTimeAgo = (timestamp: number) => {
@@ -309,44 +396,64 @@ const Ranked = () => {
               
               {/* Top Racers Section */}
               <div className="bg-[#2c2e31] rounded-lg p-6">
-                <h2 className="text-2xl font-bold mb-6 text-[#d1d0c5]">Top Racers</h2>
+                <div className="flex justify-between items-center mb-2">
+                  <h2 className="text-2xl font-bold text-[#d1d0c5]">Top Typrs</h2>
+                  <button 
+                    onClick={handleUpdateLeaderboard}
+                    disabled={updatingLeaderboard}
+                    className="text-sm bg-[#323437] hover:bg-[#e2b714] text-[#d1d0c5] hover:text-[#323437] px-2 py-1 rounded transition-colors"
+                  >
+                    {updatingLeaderboard ? "Updating..." : "Update Now"}
+                  </button>
+                </div>
                 
                 {/* Racer List */}
                 <div className="space-y-6">
-                  {topRacers.map((racer, index) => (
-                    <div key={index} className="flex items-center gap-4">
-                      <div className="w-8 h-8 bg-[#323437] rounded-full flex items-center justify-center text-[#d1d0c5]">
-                        {index + 1}
-                      </div>
-                      <div className="flex-grow">
-                        <div className="flex items-center">
-                          <img 
-                            src={`https://ui-avatars.com/api/?name=${racer.name}&background=random&color=fff&size=32`} 
-                            alt={racer.name}
-                            className="w-8 h-8 rounded-full mr-3"
-                          />
-                          <div>
-                            <p className="font-bold text-[#d1d0c5]">{racer.name}</p>
-                            <p className="text-sm">
-                              <span className={`${
-                                racer.rank.includes("Master") ? "text-purple-500" : 
-                                racer.rank.includes("Diamond") ? "text-blue-400" :
-                                racer.rank.includes("Platinum") ? "text-cyan-400" :
-                                racer.rank.includes("Gold") ? "text-[#e2b714]" :
-                                racer.rank.includes("Silver") ? "text-gray-400" :
-                                "text-blue-500"
-                              } font-bold`}>
-                                {racer.rank}
-                              </span>
-                            </p>
+                  {leaderboardLoading ? (
+                    <div className="flex justify-center py-4">
+                      <div className="animate-pulse text-[#646669]">Loading leaderboard...</div>
+                    </div>
+                  ) : topRacers.length > 0 ? (
+                    topRacers.map((racer, index) => (
+                      <div key={index} className="flex items-center gap-4">
+                        <div className="w-8 h-8 bg-[#323437] rounded-full flex items-center justify-center text-[#d1d0c5]">
+                          {index + 1}
+                        </div>
+                        <div className="flex-grow">
+                          <div className="flex items-center">
+                            <img 
+                              src={`https://ui-avatars.com/api/?name=${racer.name}&background=random&color=fff&size=32`} 
+                              alt={racer.name}
+                              className="w-8 h-8 rounded-full mr-3"
+                            />
+                            <div>
+                              <p className="font-bold text-[#d1d0c5]">{racer.name}</p>
+                              <p className="text-sm">
+                                <span className={`${
+                                  racer.rank === "Cherry MX" ? "text-red-500" :
+                                  racer.rank === "Diamond" ? "text-blue-400" :
+                                  racer.rank === "Platinum" ? "text-cyan-400" :
+                                  racer.rank === "Gold" ? "text-[#e2b714]" :
+                                  racer.rank === "Silver" ? "text-gray-400" :
+                                  "text-blue-500" // Default for Plastic
+                                } font-bold`}>
+                                  {racer.rank}
+                                </span>
+                                {racer.elo && <span className="text-[#646669] ml-2">{racer.elo} ELO</span>}
+                              </p>
+                            </div>
                           </div>
                         </div>
+                        <div className="text-right">
+                          <p className="font-bold text-[#d1d0c5]">{racer.wpm} WPM</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-[#d1d0c5]">{racer.wpm} WPM</p>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-[#646669]">
+                      No leaderboard data available
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
