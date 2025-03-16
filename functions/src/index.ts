@@ -5,6 +5,7 @@ import {
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import * as functionsV1 from 'firebase-functions/v1';
 
 admin.initializeApp();
 
@@ -454,6 +455,47 @@ export const handleRankedGameComplete = onDocumentUpdated(
       const newWinnerElo = currentWinnerElo + eloChange;
       const newWinnerPeakElo = Math.max(newWinnerElo, currentWinnerPeakElo);
 
+      // Get loser data
+      const loserDoc = await admin.firestore().collection("users").doc(loser).get();
+      const loserData = loserDoc.data();
+
+      // Create recent match objects for both players
+      const gameId = event.data.after.id;
+      
+      // For the winner
+      const winnerMatch = {
+        matchId: gameId,
+        opponentId: loser,
+        opponentName: newData.players[loser].name || "Opponent",
+        timestamp: Date.now(),
+        userWpm: newData.players[winner].wpm || 0,
+        opponentWpm: newData.players[loser].wpm || 0,
+        isWin: true,
+        eloChange: eloChange,
+        accuracy: newData.players[winner].accuracy || 0
+      };
+
+      // For the loser
+      const loserMatch = {
+        matchId: gameId,
+        opponentId: winner,
+        opponentName: newData.players[winner].name || "Opponent",
+        timestamp: Date.now(),
+        userWpm: newData.players[loser].wpm || 0,
+        opponentWpm: newData.players[winner].wpm || 0,
+        isWin: false,
+        eloChange: -eloChange,
+        accuracy: newData.players[loser].accuracy || 0
+      };
+
+      // Get current recent matches arrays or initialize empty ones
+      const winnerRecentMatches = winnerData?.recentMatches || [];
+      const loserRecentMatches = loserData?.recentMatches || [];
+
+      // Add new matches at beginning and limit to 10
+      const updatedWinnerMatches = [winnerMatch, ...winnerRecentMatches].slice(0, 10);
+      const updatedLoserMatches = [loserMatch, ...loserRecentMatches].slice(0, 10);
+
       // Update winner stats
       const winnerRef = admin.firestore().collection("users").doc(winner);
       batch.update(winnerRef, {
@@ -462,6 +504,7 @@ export const handleRankedGameComplete = onDocumentUpdated(
         "stats.overall.totalWins": admin.firestore.FieldValue.increment(1),
         currentGame: admin.firestore.FieldValue.delete(), // Clear currentGame reference
         "matchmaking.status": "idle", // Reset matchmaking status
+        recentMatches: updatedWinnerMatches // Add recent matches
       });
 
       // Update loser stats
@@ -471,11 +514,12 @@ export const handleRankedGameComplete = onDocumentUpdated(
         "stats.overall.totalLosses": admin.firestore.FieldValue.increment(1),
         currentGame: admin.firestore.FieldValue.delete(), // Clear currentGame reference
         "matchmaking.status": "idle", // Reset matchmaking status
+        recentMatches: updatedLoserMatches // Add recent matches
       });
 
       await batch.commit();
 
-      logger.info("Updated ELO ratings and cleared game references:", {
+      logger.info("Updated ELO ratings and recent matches:", {
         winner,
         loser,
         eloChange,
@@ -784,3 +828,265 @@ export const processStagnantQueue = onSchedule(
     }
   }
 );
+
+/**
+ * Scheduled function to update the global leaderboard daily at midnight
+ * This ensures we only make one query per day to get the top users by ELO
+ */
+export const updateDailyLeaderboard = onSchedule({
+  schedule: '0 0 * * *', // Run at midnight every day (cron syntax)
+  timeZone: 'America/New_York', // Adjust to your preferred timezone
+  retryCount: 3, // Retry up to 3 times if the function fails
+}, async () => {
+  try {
+    logger.info("Starting daily leaderboard update");
+    
+    // Get top 5 users by ELO
+    const topUsersQuery = await admin.firestore().collection("users")
+      .orderBy("stats.overall.elo", "desc")
+      .limit(5)
+      .get();
+    
+    const topUsers: any[] = [];
+    
+    topUsersQuery.forEach(doc => {
+      const userData = doc.data();
+      
+      // Skip users without proper data
+      if (!userData.stats?.overall?.elo) return;
+      
+      // Get the user's rank based on ELO
+      const elo = userData.stats.overall.elo;
+      let rank = "Plastic";
+      
+      // Determine rank based on ELO ranges from ranks.ts
+      if (elo >= 2000) {
+        rank = "Cherry MX";
+      } else if (elo >= 1800) {
+        rank = "Diamond";
+      } else if (elo >= 1500) {
+        rank = "Platinum";
+      } else if (elo >= 1200) {
+        rank = "Gold";
+      } else if (elo >= 800) {
+        rank = "Silver";
+      } else {
+        rank = "Plastic";
+      }
+      
+      topUsers.push({
+        uid: userData.uid,
+        username: userData.username || "Anonymous",
+        elo: elo,
+        rank: rank,
+        averageWPM: userData.stats.overall.averageWPM || 0
+      });
+    });
+    
+    // Update the leaderboard document
+    await admin.firestore().collection("leaderboards").doc("global").set({
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      topUsers: topUsers,
+      lastScheduledUpdate: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    logger.info("Updated global leaderboard with top 5 users", { count: topUsers.length });
+  } catch (error) {
+    logger.error("Error updating global leaderboard:", error);
+  }
+});
+
+/**
+ * Function to initialize the leaderboard manually if needed
+ * This can be called via an HTTP request
+ */
+export const initializeLeaderboard = functionsV1.https.onCall(async (data, context) => {
+  try {
+    // Check if authenticated and admin
+    if (!context.auth || context.auth.token.admin !== true) {
+      throw new Error("Unauthorized - only admins can initialize the leaderboard");
+    }
+    
+    // Use the same logic as the scheduled function
+    const topUsersQuery = await admin.firestore().collection("users")
+      .orderBy("stats.overall.elo", "desc")
+      .limit(5)
+      .get();
+    
+    const topUsers: any[] = [];
+    
+    topUsersQuery.forEach(doc => {
+      const userData = doc.data();
+      
+      // Skip users without proper data
+      if (!userData.stats?.overall?.elo) return;
+      
+      // Get the user's rank based on ELO
+      const elo = userData.stats.overall.elo;
+      let rank = "Plastic";
+      
+      // Determine rank based on ELO ranges from ranks.ts
+      if (elo >= 2000) {
+        rank = "Cherry MX";
+      } else if (elo >= 1800) {
+        rank = "Diamond";
+      } else if (elo >= 1500) {
+        rank = "Platinum";
+      } else if (elo >= 1200) {
+        rank = "Gold";
+      } else if (elo >= 800) {
+        rank = "Silver";
+      } else {
+        rank = "Plastic";
+      }
+      
+      logger.info(`Calculated rank for user with ELO ${elo}: ${rank}`);
+      
+      const userEntry = {
+        uid: userData.uid,
+        username: userData.username || "Anonymous",
+        elo: elo,
+        rank: rank,
+        averageWPM: userData.stats.overall.averageWPM || 0
+      };
+      
+      topUsers.push(userEntry);
+    });
+    
+    // Create the leaderboard document
+    await admin.firestore().collection("leaderboards").doc("global").set({
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      topUsers: topUsers,
+      manuallyInitialized: true,
+      initializedBy: context.auth.uid
+    });
+    
+    return { 
+      success: true, 
+      message: "Leaderboard initialized successfully",
+      count: topUsers.length
+    };
+  } catch (error) {
+    logger.error("Error initializing leaderboard:", error);
+    throw new functionsV1.https.HttpsError(
+      "internal", 
+      "Error initializing leaderboard: " + (error instanceof Error ? error.message : "Unknown error")
+    );
+  }
+});
+
+/**
+ * Function to update the leaderboard manually for testing
+ * This can be called by any authenticated user
+ */
+export const updateLeaderboardManually = functionsV1.https.onCall(async (data, context) => {
+  try {
+    // Check if authenticated
+    if (!context.auth) {
+      throw new Error("Authentication required");
+    }
+    
+    logger.info("Manual leaderboard update requested by user:", context.auth.uid);
+    
+    // Get top 5 users by ELO
+    const topUsersQuery = await admin.firestore().collection("users")
+      .orderBy("stats.overall.elo", "desc")
+      .limit(5)
+      .get();
+    
+    const topUsers: any[] = [];
+    
+    // Log the number of users found
+    logger.info(`Found ${topUsersQuery.size} users for leaderboard`);
+    
+    topUsersQuery.forEach(doc => {
+      const userData = doc.data();
+      
+      // Skip users without proper data
+      if (!userData.stats?.overall?.elo) {
+        logger.warn(`User ${doc.id} has no ELO data, skipping`);
+        return;
+      }
+      
+      // Get the user's rank based on ELO
+      const elo = userData.stats.overall.elo;
+      let rank = "Plastic";
+      
+      // Determine rank based on ELO ranges from ranks.ts
+      if (elo >= 2000) {
+        rank = "Cherry MX";
+      } else if (elo >= 1800) {
+        rank = "Diamond";
+      } else if (elo >= 1500) {
+        rank = "Platinum";
+      } else if (elo >= 1200) {
+        rank = "Gold";
+      } else if (elo >= 800) {
+        rank = "Silver";
+      } else {
+        rank = "Plastic";
+      }
+      
+      logger.info(`Calculated rank for user with ELO ${elo}: ${rank}`);
+      
+      const userEntry = {
+        uid: userData.uid,
+        username: userData.username || "Anonymous",
+        elo: elo,
+        rank: rank,
+        averageWPM: userData.stats.overall.averageWPM || 0
+      };
+      
+      logger.info(`Adding user to leaderboard: ${JSON.stringify(userEntry)}`);
+      topUsers.push(userEntry);
+    });
+    
+    // If no users with ELO were found, create some sample data
+    if (topUsers.length === 0) {
+      logger.warn("No users with ELO found, creating sample data");
+      
+      // Create sample data with correct ranks based on ranks.ts
+      topUsers.push(
+        { uid: "sample1", username: "TypeMaster99", elo: 2050, rank: "Cherry MX", averageWPM: 145 },
+        { uid: "sample2", username: "SpeedDemon", elo: 1850, rank: "Diamond", averageWPM: 135 },
+        { uid: "sample3", username: "KeyboardWarrior", elo: 1600, rank: "Platinum", averageWPM: 130 },
+        { uid: "sample4", username: "SwiftKeys", elo: 1300, rank: "Gold", averageWPM: 120 },
+        { uid: "sample5", username: "FastFingers", elo: 900, rank: "Silver", averageWPM: 115 }
+      );
+      
+      logger.info("Created sample data with proper ranks");
+    }
+    
+    // Create the timestamp
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    // Update the leaderboard document
+    const leaderboardData = {
+      updatedAt: timestamp,
+      topUsers: topUsers,
+      lastManualUpdate: timestamp,
+      updatedBy: context.auth.uid
+    };
+    
+    logger.info("Writing leaderboard data:", JSON.stringify(leaderboardData));
+    
+    await admin.firestore().collection("leaderboards").doc("global").set(leaderboardData);
+    
+    logger.info(`Manually updated leaderboard with ${topUsers.length} users`);
+    
+    // Return the data that was written
+    return { 
+      success: true, 
+      message: "Leaderboard updated successfully",
+      count: topUsers.length,
+      topUsers: topUsers,
+      updatedAt: new Date().toISOString() // Client-friendly timestamp
+    };
+  } catch (error) {
+    logger.error("Error manually updating leaderboard:", error);
+    throw new functionsV1.https.HttpsError(
+      "internal", 
+      "Error updating leaderboard: " + (error instanceof Error ? error.message : "Unknown error")
+    );
+  }
+});

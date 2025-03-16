@@ -33,6 +33,30 @@ interface UserStats {
   };
 }
 
+// Define match data type
+export interface MatchData {
+  opponent: string;
+  timeAgo: string;
+  userWpm: number;
+  opponentWpm: number;
+  isWin: boolean;
+  eloChange: number;
+  accuracy?: number; // Optional accuracy field
+}
+
+// Define recent match data type for storing in user document
+export interface RecentMatch {
+  matchId: string;        // Reference to full match data if needed
+  opponentId: string;     // User ID of opponent
+  opponentName: string;   // Username of opponent
+  timestamp: number;      // Unix timestamp of match completion
+  userWpm: number;        // User's WPM
+  opponentWpm: number;    // Opponent's WPM
+  isWin: boolean;         // Whether the user won
+  eloChange: number;      // ELO points gained/lost
+  accuracy: number;       // User's accuracy percentage
+}
+
 interface UserData {
   uid: string;
   email: string | null;
@@ -43,6 +67,7 @@ interface UserData {
   username: string | null;
   stats: UserStats;
   games: GameResult[];
+  recentMatches?: RecentMatch[]; // Array of recent matches, limited to 10
   currentGame?: string; // ID of the current game the user is in
 }
 
@@ -89,15 +114,4 @@ interface GameData {
   selectedTopic?: string; // The topic that was selected after voting
 }
 
-// Define match data type
-export interface MatchData {
-  opponent: string;
-  timeAgo: string;
-  userWpm: number;
-  opponentWpm: number;
-  isWin: boolean;
-  eloChange: number;
-  accuracy?: number; // Optional accuracy field
-}
-
-export type { UserData, GameResult, GameData, Player };
+export type { UserData, GameResult, GameData, Player, RecentMatch };
