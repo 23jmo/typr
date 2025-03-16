@@ -25,6 +25,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const loadUserData = async (uid: string) => {
     const data = await userService.getUserByUid(uid)
     if (data) {
+      // Log the data to see what's coming from Firestore
+      console.log("User data from Firestore:", data);
+      
       setUserData({
         uid,
         email: data.email,
@@ -34,6 +37,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         photoURL: data.photoURL,
         stats: data.stats,
         games: data.games,
+        recentMatches: data.recentMatches || [], // Make sure recentMatches is included
         updatedAt: data.updatedAt
       })
     }

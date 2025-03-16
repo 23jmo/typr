@@ -26,6 +26,7 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 import { UserData, GameResult } from "../types";
 
@@ -44,6 +45,7 @@ const app = initializeApp(firebaseConfig);
 export const analytics = getAnalytics(app);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+export const functions = getFunctions(app);
 
 // Auth services
 export const authService = {
@@ -677,4 +679,67 @@ export const matchmakingService = {
       return [];
     }
   },
+};
+
+// Leaderboard service for efficient leaderboard operations
+export const leaderboardService = {
+  // Get global leaderboard (top 5 users)
+  getGlobalLeaderboard: async () => {
+    try {
+      const leaderboardDoc = await getDoc(doc(db, "leaderboards", "global"));
+      
+      if (leaderboardDoc.exists()) {
+        return leaderboardDoc.data();
+      } else {
+        // Fallback to direct query if document doesn't exist
+        const leaderboard = await matchmakingService.getLeaderboard(5);
+        return { 
+          updatedAt: new Date().toISOString(),
+          topUsers: leaderboard
+        };
+      }
+    } catch (error) {
+      console.error("[Leaderboard] Error getting global leaderboard:", error);
+      return { updatedAt: new Date().toISOString(), topUsers: [] };
+    }
+  },
+  
+  // Manual update function for testing purposes - uses Cloud Function
+  updateLeaderboardNow: async () => {
+    try {
+      console.log("[Leaderboard] Manually updating leaderboard via Cloud Function");
+      
+      // Call the Cloud Function
+      const updateLeaderboardFn = httpsCallable(functions, 'updateLeaderboardManually');
+      const result = await updateLeaderboardFn();
+      
+      console.log("[Leaderboard] Cloud Function result:", result.data);
+      
+      // Wait a moment to ensure Firestore has updated
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Fetch the updated leaderboard with cache busting
+      const leaderboardRef = doc(db, "leaderboards", "global");
+      const leaderboardSnap = await getDoc(leaderboardRef);
+      
+      if (!leaderboardSnap.exists()) {
+        throw new Error("Leaderboard document not found after update");
+      }
+      
+      const leaderboardData = leaderboardSnap.data();
+      console.log("[Leaderboard] Fresh data after update:", leaderboardData);
+      
+      return { 
+        success: true, 
+        updatedAt: leaderboardData.updatedAt,
+        topUsers: leaderboardData.topUsers
+      };
+    } catch (error) {
+      console.error("[Leaderboard] Error manually updating leaderboard:", error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : "Unknown error" 
+      };
+    }
+  }
 };
