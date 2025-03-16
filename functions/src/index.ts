@@ -454,6 +454,47 @@ export const handleRankedGameComplete = onDocumentUpdated(
       const newWinnerElo = currentWinnerElo + eloChange;
       const newWinnerPeakElo = Math.max(newWinnerElo, currentWinnerPeakElo);
 
+      // Get loser data
+      const loserDoc = await admin.firestore().collection("users").doc(loser).get();
+      const loserData = loserDoc.data();
+
+      // Create recent match objects for both players
+      const gameId = event.data.after.id;
+      
+      // For the winner
+      const winnerMatch = {
+        matchId: gameId,
+        opponentId: loser,
+        opponentName: newData.players[loser].name || "Opponent",
+        timestamp: Date.now(),
+        userWpm: newData.players[winner].wpm || 0,
+        opponentWpm: newData.players[loser].wpm || 0,
+        isWin: true,
+        eloChange: eloChange,
+        accuracy: newData.players[winner].accuracy || 0
+      };
+
+      // For the loser
+      const loserMatch = {
+        matchId: gameId,
+        opponentId: winner,
+        opponentName: newData.players[winner].name || "Opponent",
+        timestamp: Date.now(),
+        userWpm: newData.players[loser].wpm || 0,
+        opponentWpm: newData.players[winner].wpm || 0,
+        isWin: false,
+        eloChange: -eloChange,
+        accuracy: newData.players[loser].accuracy || 0
+      };
+
+      // Get current recent matches arrays or initialize empty ones
+      const winnerRecentMatches = winnerData?.recentMatches || [];
+      const loserRecentMatches = loserData?.recentMatches || [];
+
+      // Add new matches at beginning and limit to 10
+      const updatedWinnerMatches = [winnerMatch, ...winnerRecentMatches].slice(0, 10);
+      const updatedLoserMatches = [loserMatch, ...loserRecentMatches].slice(0, 10);
+
       // Update winner stats
       const winnerRef = admin.firestore().collection("users").doc(winner);
       batch.update(winnerRef, {
@@ -462,6 +503,7 @@ export const handleRankedGameComplete = onDocumentUpdated(
         "stats.overall.totalWins": admin.firestore.FieldValue.increment(1),
         currentGame: admin.firestore.FieldValue.delete(), // Clear currentGame reference
         "matchmaking.status": "idle", // Reset matchmaking status
+        recentMatches: updatedWinnerMatches // Add recent matches
       });
 
       // Update loser stats
@@ -471,11 +513,12 @@ export const handleRankedGameComplete = onDocumentUpdated(
         "stats.overall.totalLosses": admin.firestore.FieldValue.increment(1),
         currentGame: admin.firestore.FieldValue.delete(), // Clear currentGame reference
         "matchmaking.status": "idle", // Reset matchmaking status
+        recentMatches: updatedLoserMatches // Add recent matches
       });
 
       await batch.commit();
 
-      logger.info("Updated ELO ratings and cleared game references:", {
+      logger.info("Updated ELO ratings and recent matches:", {
         winner,
         loser,
         eloChange,
