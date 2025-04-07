@@ -243,130 +243,6 @@ const FinishedScreen = ({
     }
   }, [gameData, userId, isWinner, userData]);
 
-  // Add function to start the next topic voting
-  const startNextTopicVoting = async () => {
-    console.log("Starting next topic voting for room:", roomId);
-
-    if (!roomId) {
-      console.error("No roomId found for next topic voting");
-      return;
-    }
-
-    // Double-check that this is a custom game (not ranked)
-    if ("ranked" in gameData) {
-      console.error("Cannot start next topic voting for ranked games");
-      alert("Next topic voting is only available for custom games");
-      return;
-    }
-
-    // Double-check that there are at least 2 connected players
-    const currentConnectedPlayers = Object.values(gameData.players).filter(
-      (player) => player.connected
-    );
-
-    if (currentConnectedPlayers.length < 2) {
-      console.error(
-        "Cannot start next topic voting with less than 2 connected players"
-      );
-      alert("At least 2 players must be connected to start next topic voting");
-      return;
-    }
-
-    try {
-      const db = getFirestore();
-      const roomRef = doc(db, "gameRooms", roomId);
-
-      // CRITICAL: Get the latest game data to ensure we have the most up-to-date player connection status
-      const roomSnapshot = await getDoc(roomRef);
-
-      // Select 4 random topics from the TOPIC_DESCRIPTIONS object
-      const allTopics = Object.keys(TOPIC_DESCRIPTIONS);
-      const randomTopics: string[] = [];
-
-      // Ensure we get 4 unique topics
-      while (randomTopics.length < 4) {
-        const randomIndex = Math.floor(Math.random() * allTopics.length);
-        const topic = allTopics[randomIndex];
-
-        if (!randomTopics.includes(topic)) {
-          randomTopics.push(topic);
-        }
-      }
-
-      // Set voting end time to 15 seconds from now
-      // Use Firestore timestamp instead of JavaScript timestamp
-      const votingEndTime = serverTimestamp();
-      const clientVotingEndTime = Date.now() + 15000; // For client-side calculations
-
-      if (!roomSnapshot.exists()) {
-        console.log("Room no longer exists. Recreating it for voting...");
-
-        // Recreate the room with the current game data
-        await setDoc(roomRef, {
-          status: "voting",
-          players: gameData.players,
-          text: gameData.text || "The quick brown fox jumps over the lazy dog.",
-          timeLimit: gameData.timeLimit || 60,
-          topicOptions: randomTopics,
-          votingEndTime: votingEndTime,
-          clientVotingEndTime: clientVotingEndTime,
-          createdAt: serverTimestamp(),
-        });
-
-        console.log("Successfully recreated room for voting");
-      } else {
-        console.log("Room exists, updating to voting state");
-
-        // Get the latest game data
-        const latestGameData = roomSnapshot.data() as GameData;
-
-        // Double-check that there are at least 2 connected players using the latest data
-        const connectedPlayers = Object.values(latestGameData.players).filter(
-          (player) => player.connected
-        );
-
-        console.log(
-          `Connected players before starting voting: ${connectedPlayers.length}`
-        );
-
-        if (connectedPlayers.length < 2) {
-          console.error(
-            "Cannot start next topic voting with less than 2 connected players"
-          );
-          alert(
-            "At least 2 players must be connected to start next topic voting"
-          );
-          return;
-        }
-
-        // Update the existing game room status to "voting"
-        await updateDoc(roomRef, {
-          status: "voting",
-          topicOptions: randomTopics,
-          votingEndTime: votingEndTime,
-          clientVotingEndTime: clientVotingEndTime,
-          // Reset player votes
-          ...Object.fromEntries(
-            Object.keys(latestGameData.players).map((playerId) => [
-              `players.${playerId}.vote`,
-              null,
-            ])
-          ),
-        });
-
-        console.log("Successfully updated existing room to voting state");
-      }
-
-      console.log("Voting started with topics:", randomTopics);
-    } catch (error) {
-      console.error("Error starting next topic voting:", error);
-      alert("Error starting next topic voting. Please try again.");
-    }
-  };
-
-  // Check if this is a custom game (not ranked)
-  const isCustomGame = !("ranked" in gameData);
-
   const handlePlayAgain = () => {
     if (socket) {
       console.log("[FinishedScreen] Emitting requestPlayAgain");
@@ -402,39 +278,52 @@ const FinishedScreen = ({
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mt-4 md:mt-6">
-            {Object.entries(gameData.players).map(([playerId, player]) => (
-              <div
-                key={playerId}
-                className={`p-4 md:p-6 rounded-lg bg-[#333333] border-2 ${
-                  playerId === gameData.winner
-                    ? "border-yellow-500"
-                    : "border-[#444444]"
-                }`}
-              >
-                <div className="font-medium text-lg md:text-xl mb-3 flex items-center">
-                  <span className="text-white">{player.name}</span>
-                  {playerId === userId && (
-                    <span className="ml-2 text-sm bg-yellow-500 text-black font-bold px-2 py-0.5 rounded-full">
-                      You
-                    </span>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col">
-                    <span className="text-gray-400 text-sm mb-1">WPM</span>
-                    <span className="text-yellow-400 font-mono text-xl md:text-2xl font-bold">
-                      {player.wpm}
-                    </span>
+            {Object.entries(gameData.players).map(([playerId, player]) => {
+              // Determine if this card is for the local user
+              const isLocalPlayerCard = playerId === userId;
+              // Use the accurate props for the local user, otherwise use player data from gameData
+              const displayWpm = isLocalPlayerCard ? wpm : player.wpm;
+              const displayAccuracy = isLocalPlayerCard ? accuracy : player.accuracy;
+
+              // Log opponent data for debugging
+              if (!isLocalPlayerCard) {
+                console.log(`[FinishedScreen] Opponent data for ${player.name} (${playerId}):`, player);
+              }
+
+              return (
+                <div
+                  key={playerId}
+                  className={`p-4 md:p-6 rounded-lg bg-[#333333] border-2 ${
+                    playerId === gameData.winner
+                      ? "border-yellow-500"
+                      : "border-[#444444]"
+                  }`}
+                >
+                  <div className="font-medium text-lg md:text-xl mb-3 flex items-center">
+                    <span className="text-white">{player.name}</span>
+                    {isLocalPlayerCard && (
+                      <span className="ml-2 text-sm bg-yellow-500 text-black font-bold px-2 py-0.5 rounded-full">
+                        You
+                      </span>
+                    )}
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-gray-400 text-sm mb-1">Accuracy</span>
-                    <span className="text-white font-mono text-xl md:text-2xl">
-                      {player.accuracy}%
-                    </span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-gray-400 text-sm mb-1">WPM</span>
+                      <span className="text-yellow-400 font-mono text-xl md:text-2xl font-bold">
+                        {displayWpm}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-400 text-sm mb-1">Accuracy</span>
+                      <span className="text-white font-mono text-xl md:text-2xl">
+                        {displayAccuracy}%
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -550,64 +439,33 @@ const FinishedScreen = ({
           />
         </div>
 
-        <div className="flex justify-center mt-8 gap-4">
-          {isCustomGame && (
+        {/* Action Buttons */}
+        <div className="flex flex-col md:flex-row gap-4 md:gap-6 mt-6 md:mt-8 justify-center">
+          {/* Ready for Next Game Button (Formerly Play Again/Pick Topic) */}
+          {canPlayAgain && (
             <button
-              className={`flex items-center gap-2 ${
-                hasEnoughPlayers
-                  ? "bg-yellow-500 hover:bg-yellow-600 text-black"
-                  : "bg-gray-500 cursor-not-allowed text-gray-300"
-              } font-bold px-8 py-3 rounded-lg transition-all`}
-              onClick={hasEnoughPlayers ? startNextTopicVoting : undefined}
-              title={
-                hasEnoughPlayers
-                  ? "Vote for the next topic"
-                  : "At least 2 players must be connected to start next topic voting"
-              }
-              disabled={!hasEnoughPlayers}
+              onClick={handlePlayAgain}
+              disabled={localPlayerWantsPlayAgain}
+              className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors w-full md:w-auto text-lg ${
+                localPlayerWantsPlayAgain
+                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                  : "bg-yellow-500 hover:bg-yellow-600 text-black"
+              }`}
             >
-              <FaVoteYea />
-              {hasEnoughPlayers ? "Pick Next Topic" : "Need More Players"}
+              <FaHistory />
+              {localPlayerWantsPlayAgain ? "Waiting for others..." : "Pick Next Topic"}
             </button>
           )}
 
+          {/* Return Home Button */}
           <button
-            className="flex items-center gap-2 bg-[#333333] hover:bg-[#444444] text-white font-bold px-8 py-3 rounded-lg transition-all hover:shadow-lg"
             onClick={() => navigate("/")}
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors w-full md:w-auto bg-[#444444] hover:bg-[#555555] text-white text-lg"
           >
-            <FaHome /> Back to Home
+            <FaHome />
+            Return Home
           </button>
         </div>
-
-        {/* Play Again Section */}
-        {canPlayAgain && (
-          <div className="mt-6 pt-6 border-t border-[#3c3e41]">
-            <h3 className="text-lg font-semibold mb-3">Play Again?</h3>
-            {/* List players and their play again status */}
-            <div className="space-y-1 mb-4 max-w-xs mx-auto">
-              {finishedConnectedPlayers.map(player => (
-                <div key={player.id} className="flex justify-between items-center text-sm px-2">
-                  <span className={`${player.id === localUserId ? 'font-semibold' : ''}`}>{player.name} {player.id === localUserId ? '(You)' : ''}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${player.wantsPlayAgain ? 'bg-green-700 text-green-100' : 'bg-gray-600 text-gray-300'}`}>
-                    {player.wantsPlayAgain ? 'Ready' : 'Waiting'}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={handlePlayAgain}
-              disabled={localPlayerWantsPlayAgain || !socket}
-              className={`px-6 py-2 rounded font-medium transition-colors ${
-                localPlayerWantsPlayAgain
-                  ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
-                  : 'bg-[#e2b714] text-[#323437] hover:bg-[#e2b714]/90'
-              }`}
-            >
-              {localPlayerWantsPlayAgain ? 'Waiting for others...' : 'Play Again'}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -33,6 +33,14 @@ interface UserStats {
   };
 }
 
+// Define CharStats type
+export interface CharStats {
+  correct: number;
+  incorrect: number;
+  extra: number;
+  missed: number;
+}
+
 // Define match data type
 export interface MatchData {
   opponent: string;
@@ -128,4 +136,4 @@ interface GameData { // Or rename to RoomData
   // selectedTopic?: string;
 }
 
-export type { UserData, GameResult, GameData, Player, RecentMatch };
+export type { UserData, GameResult, GameData, Player, RecentMatch, CharStats };
