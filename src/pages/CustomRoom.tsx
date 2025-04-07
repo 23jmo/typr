@@ -1,23 +1,14 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useUser } from "../contexts/UserContext";
 import { useState, useEffect } from "react";
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  serverTimestamp,
-  getDoc,
-  updateDoc,
-} from "firebase/firestore";
 import { auth } from "../services/firebase";
 import { TOPIC_DESCRIPTIONS } from "../constants/topicDescriptions";
-import { generateTextByTopic, generateRandomText } from "../utilities/random-text";
 import React from "react";
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 
-// Available time limits in seconds
-const TIME_LIMITS = [30, 60, 90, 120];
+// Define backend URL (replace with environment variable in production)
+const BACKEND_URL = "http://localhost:5001";
 
 const CustomRoom = () => {
   const navigate = useNavigate();
@@ -46,146 +37,137 @@ const CustomRoom = () => {
 
       // If no username is set, show the username input
       if (!userData?.username && !tempUsername) {
+        console.log("[CustomRoom] URL Room ID provided, but no username. Showing input.");
         setShowUsernameInput(true);
-        setMode("join");
+        setMode("join"); // Switch to join mode visually
+        setRoomId(urlRoomId); // Pre-fill the join input
         return;
       }
 
-      // Try to join the room
+      // Username exists, try to join the room
+      console.log("[CustomRoom] URL Room ID provided with username. Attempting auto-join.");
       await joinGame(urlRoomId);
     };
 
     autoJoinRoom();
-  }, [urlRoomId, userData?.username, tempUsername]);
+  }, [urlRoomId, userData?.username]); // Rerun if username becomes available
+
+  // Effect to handle username input confirmation
+  useEffect(() => {
+    // If username input was shown and now we have a username (either temp or logged in),
+    // and we were trying to auto-join, attempt join again.
+    if (!showUsernameInput && urlRoomId && (tempUsername || userData?.username)) {
+        // Check if we are in join mode and the roomId matches the URL param
+        if (mode === 'join' && roomId === urlRoomId) {
+            console.log("[CustomRoom] Username confirmed after input. Retrying auto-join.");
+            joinGame(urlRoomId);
+        }
+    }
+  }, [showUsernameInput, tempUsername, userData?.username, urlRoomId, mode, roomId]);
 
   const createGame = async () => {
     const username = tempUsername || userData?.username;
     const userId = auth.currentUser?.uid;
 
     if (!username || !userId) {
-      setError("You must be logged in to create a game");
+      setError("You must be logged in or provide a temporary username to create a game.");
       return;
     }
 
     // Validate custom text if that's the selected source
     if (textSource === "custom" && (!customText || customText.trim().length < 10)) {
-      setError("Please enter a custom text with at least 10 characters");
+      setError("Please enter a custom text with at least 10 characters.");
+      return;
+    }
+    // Validate topic selection
+    if (textSource === "topic" && !selectedTopic) {
+      setError("Please select a topic.");
       return;
     }
 
-    try {
-      setIsLoading(true);
-      setError(null);
-      const db = getFirestore();
-      const roomId = Math.random().toString(36).substring(2, 8);
+    setIsLoading(true);
+    setError(null);
 
-      // Get text based on selected source
-      let gameText = "";
-      if (textSource === "topic") {
-        gameText = await generateTextByTopic(selectedTopic);
-      } else if (textSource === "random") {
-        gameText = generateRandomText(textLength);
-      } else {
-        gameText = customText.trim();
+    try {
+      console.log("[CustomRoom] Sending createRoom request to backend...");
+      const response = await fetch(`${BACKEND_URL}/api/createRoom`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          userId,
+          timeLimit,
+          textLength, // Send the requested word count
+          playerLimit,
+          isRanked,
+          textSource,
+          selectedTopic: textSource === "topic" ? selectedTopic : undefined,
+          customText: textSource === "custom" ? customText : undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[CustomRoom] Create room failed:", data);
+        throw new Error(data.error || `Failed to create room (${response.status})`);
       }
 
-      // Create default game name
-      const defaultGameName = `${username}'s Race`;
+      const newRoomId = data.roomId;
+      console.log("[CustomRoom] Game room created successfully:", newRoomId);
+      navigate(`/race/${newRoomId}`);
 
-      // Create new room in Firestore
-      const roomRef = doc(db, "gameRooms", roomId);
-      await setDoc(roomRef, {
-        id: roomId,
-        name: defaultGameName,
-        status: "waiting",
-        createdAt: serverTimestamp(),
-        timeLimit: timeLimit,
-        textLength: textLength,
-        playerLimit: playerLimit,
-        isRanked: isRanked,
-        players: {
-          // Use userId as the key instead of username
-          [userId]: {
-            name: username,
-            wpm: 0,
-            accuracy: 100,
-            progress: 0,
-            ready: false,
-            connected: true,
-            finished: false,
-            joinedAt: serverTimestamp(),
-          },
-        },
-        text: gameText,
-        textSource: textSource,
-        topic: textSource === "topic" ? selectedTopic : null,
-      });
-      
-      console.log("Game room created successfully:", roomId);
-      navigate(`/race/${roomId}`);
-    } catch (error) {
-      console.error("Error creating game room:", error);
-      setError("Failed to create game room. Please try again.");
+    } catch (err) {
+      console.error("Error creating game room:", err);
+      setError((err as Error).message || "Failed to create game room. Please try again.");
       setIsLoading(false);
     }
   };
 
   const joinGame = async (targetRoomId?: string) => {
     const username = tempUsername || userData?.username;
-    const userId = auth.currentUser?.uid;
+    const userId = auth.currentUser?.uid; // We don't send userId here, RaceRoom will handle it
     const roomToJoin = targetRoomId || roomId;
 
-    if (!username || !userId) {
-      setError("You must be logged in to join a game");
+    if (!username) { // Only need username check now, userId check happens in RaceRoom
+      setError("You must be logged in or provide a temporary username to join a game.");
+      // Show input if joining without username and it's not already shown
+       if (!showUsernameInput) {
+           setShowUsernameInput(true);
+       }
       return;
     }
 
     if (!roomToJoin) {
-      setError("Please enter a room ID");
+      setError("Please enter a room ID.");
       return;
     }
 
+    // Ensure room ID is uppercase for consistency if needed (backend generates uppercase)
+    const formattedRoomId = roomToJoin.toUpperCase();
+
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      const db = getFirestore();
-      const roomRef = doc(db, "gameRooms", roomToJoin);
-      const roomDoc = await getDoc(roomRef);
+      console.log(`[CustomRoom] Checking room availability: ${formattedRoomId}`);
+      const response = await fetch(`${BACKEND_URL}/api/checkRoom/${formattedRoomId}`);
+      const data = await response.json();
 
-      if (!roomDoc.exists()) {
-        setError("Room not found!");
-        setIsLoading(false);
-        return;
+      if (!response.ok) {
+        console.error("[CustomRoom] Check room failed:", data);
+        throw new Error(data.error || `Failed to check room (${response.status})`);
       }
 
-      const roomData = roomDoc.data();
-      
-      // Check player limit
-      if (Object.keys(roomData.players || {}).length >= (roomData.playerLimit || 2)) {
-        setError("Room is full!");
-        setIsLoading(false);
-        return;
-      }
+      // Room exists and is joinable
+      console.log("[CustomRoom] Room available:", formattedRoomId);
+      navigate(`/race/${formattedRoomId}`);
 
-      // Add player to room using userId as the key
-      await updateDoc(roomRef, {
-        [`players.${userId}`]: {
-          name: username,
-          wpm: 0,
-          accuracy: 100,
-          progress: 0,
-          ready: false,
-          connected: true,
-          finished: false,
-          joinedAt: serverTimestamp(),
-        },
-      });
-
-      console.log("Joined game room:", roomToJoin);
-      navigate(`/race/${roomToJoin}`);
-    } catch (error) {
-      console.error("Error joining game:", error);
-      setError("Error joining game. Please try again.");
+    } catch (err) {
+      console.error("Error joining game:", err);
+      setError((err as Error).message || "Error joining game. Please check the ID and try again.");
       setIsLoading(false);
     }
   };
@@ -443,22 +425,30 @@ const CustomRoom = () => {
       {/* Username input section - only show when needed */}
       {showUsernameInput && (
         <div className="w-full max-w-4xl bg-[#2c2e31] rounded-lg shadow-lg p-6 mb-6">
-          <h3 className="text-[#d1d0c5] text-lg mb-2">Temporary Username</h3>
+          <h3 className="text-[#d1d0c5] text-lg mb-2">Enter Username to Continue</h3>
+          <p className="text-sm text-[#a1a1a1] mb-3">A username is required to join or create games.</p>
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Enter a username"
+              placeholder="Enter a temporary username"
               value={tempUsername}
               onChange={(e) => setTempUsername(e.target.value)}
               className="flex-1 p-3 rounded bg-[#323437] border border-[#646669] text-[#d1d0c5] focus:outline-none focus:border-[#e2b714]"
             />
             <button
-              onClick={() => setShowUsernameInput(false)}
-              className="px-4 rounded bg-[#323437] border border-[#646669] text-[#d1d0c5] hover:bg-[#3c3e41] transition-colors"
+              onClick={() => {
+                  if (tempUsername.trim()) { // Only continue if a name is entered
+                      setShowUsernameInput(false);
+                  } else {
+                      setError("Please enter a username.");
+                  }
+               }}
+              className="px-4 rounded bg-[#e2b714] text-[#323437] hover:bg-[#e2b714]/90 transition-colors font-medium"
             >
               Continue
             </button>
           </div>
+           <p className="text-xs text-[#646669] mt-2">Or <button onClick={() => navigate('/signin')} className="text-[#e2b714] underline">sign in</button> for a permanent username.</p>
         </div>
       )}
       
@@ -466,8 +456,9 @@ const CustomRoom = () => {
       <div className="w-full max-w-4xl bg-[#2c2e31] rounded-lg shadow-lg p-8 transition-all duration-300">
         {/* Error message */}
         {error && (
-          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 text-red-200 rounded-md">
-            {error}
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 text-red-200 rounded-md flex justify-between items-center">
+            <span>{error}</span>
+             <button onClick={() => setError(null)} className="text-red-200 hover:text-white">✕</button>
           </div>
         )}
         
@@ -499,12 +490,13 @@ const CustomRoom = () => {
             />
             
             {/* Ranked Game Toggle */}
-            <ToggleSwitch
+            {/* <ToggleSwitch
               isChecked={isRanked}
               onChange={setIsRanked}
               label="Ranked Game"
               description="Results will affect player ELO ratings"
-            />
+            /> */}
+            {/* TODO: Re-enable ranked mode toggle once backend logic is implemented */}
             
             {/* Replace Text Type Dropdown with 3-box layout */}
             <div className="mb-6">
@@ -517,23 +509,38 @@ const CustomRoom = () => {
               {/* Subtle divider */}
               <div className="border-b border-[#3c3e41] my-4"></div>
               
-              {/* Content container with conditional rendering instead of absolute positioning */}
-              <div className="mb-4">
+              {/* Content container with conditional rendering */}
+              <div className="mb-4 min-h-[200px]"> {/* Add min-height */}
+                {textSource === "random" && (
+                  <div className="mt-4">
+                     <p className="text-[#a1a1a1] mb-4 text-center">A random text passage will be generated by the server.</p>
+                      <CustomSlider
+                        value={textLength}
+                        onChange={setTextLength}
+                        min={10} // Min words
+                        max={150} // Max words
+                        step={5}
+                        label="Approx. Text Length"
+                        unit=" words"
+                      />
+                  </div>
+                )}
                 {textSource === "topic" && (
                   <div className="mt-4">
-                    {/* Text Length Slider for topic selection - moved above topics */}
+                     <p className="text-[#a1a1a1] mb-4 text-center">A text passage based on the selected topic will be generated by the server.</p>
+                    {/* Text Length Slider for topic selection */}
                     <CustomSlider
                       value={textLength}
                       onChange={setTextLength}
-                      min={10}
-                      max={200}
+                      min={10} // Min words
+                      max={150} // Max words
                       step={5}
-                      label="Text Length"
+                      label="Approx. Text Length"
                       unit=" words"
                     />
-                    
+
                     <label className="text-[#d1d0c5] text-base block mb-2 mt-4">Select Topic</label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3"> {/* Responsive grid */}
                       {Object.entries(TOPIC_DESCRIPTIONS).map(([key, description]) => (
                         <div 
                           key={key}
@@ -544,52 +551,40 @@ const CustomRoom = () => {
                           }`}
                           onClick={() => setSelectedTopic(key)}
                         >
-                          {description}
+                           <span className="block text-sm font-medium">{key.charAt(0).toUpperCase() + key.slice(1)}</span> {/* Capitalize topic */}
+                           <span className="block text-xs text-[#a1a1a1]">{description}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-                
+
                 {textSource === "custom" && (
                   <div className="mt-4">
-                    <label className="text-[#d1d0c5] text-base block mb-2">Custom Text</label>
+                     <p className="text-[#a1a1a1] mb-4 text-center">Enter your own text for the race.</p>
+                    <label className="text-[#d1d0c5] text-base block mb-2">Custom Text (min 10 chars)</label>
                     <textarea
                       value={customText}
                       onChange={(e) => setCustomText(e.target.value)}
                       placeholder="Enter your custom text here..."
-                      className="w-full p-3 rounded-lg bg-[#323437] border-2 border-[#646669] text-[#d1d0c5] focus:outline-none focus:border-[#e2b714] min-h-[100px] resize-none"
+                      className="w-full p-3 rounded-lg bg-[#323437] border-2 border-[#646669] text-[#d1d0c5] focus:outline-none focus:border-[#e2b714] min-h-[120px] resize-none" // Increased min-height
                     />
+                    {/* Character count instead of word count for textarea */}
                     <div className="mt-2 text-right text-sm text-[#a1a1a1]">
-                      {customText.trim().split(/\s+/).filter(Boolean).length} words
+                      {customText.length} characters
                     </div>
                   </div>
                 )}
               </div>
-              
-              {/* Text Length Slider - only show for random text */}
-              {textSource === "random" && (
-                <div>
-                  <CustomSlider
-                    value={textLength}
-                    onChange={setTextLength}
-                    min={10}
-                    max={200}
-                    step={5}
-                    label="Text Length"
-                    unit=" words"
-                  />
-                </div>
-              )}
             </div>
             
             {/* Create Game Button */}
             <button
               onClick={createGame}
-              disabled={isLoading}
+              disabled={isLoading || showUsernameInput} // Disable if username input is showing
               className={`w-full p-4 rounded-md font-medium transition-colors flex items-center justify-center gap-2 ${
-                isLoading
-                  ? "bg-[#a08310] text-[#323437] cursor-not-allowed"
+                isLoading || showUsernameInput
+                  ? "bg-[#a08310] text-[#646669] cursor-not-allowed"
                   : "bg-[#e2b714] text-[#323437] hover:bg-[#e2b714]/90"
               }`}
             >
@@ -609,16 +604,17 @@ const CustomRoom = () => {
                 placeholder="ENTER GAME ID (E.G., ABC123)"
                 value={roomId}
                 onChange={(e) => setRoomId(e.target.value)}
-                className="w-full p-3 rounded-md bg-[#323437] border border-[#646669] text-[#d1d0c5] focus:outline-none focus:border-[#e2b714] placeholder-[#646669] uppercase text-center"
+                 onKeyUp={(e) => { if (e.key === 'Enter') joinGame(); }} // Allow joining with Enter key
+                className="w-full p-3 rounded-md bg-[#323437] border border-[#646669] text-[#d1d0c5] focus:outline-none focus:border-[#e2b714] placeholder-[#646669] uppercase text-center tracking-widest" // Added tracking
               />
             </div>
             
             <button
               onClick={() => joinGame()}
-              disabled={isLoading}
+              disabled={isLoading || showUsernameInput} // Disable if username input is showing
               className={`w-full py-3 rounded-md font-medium transition-colors flex items-center justify-center gap-2 ${
-                isLoading
-                  ? "bg-[#a08310] text-[#323437] cursor-not-allowed"
+                isLoading || showUsernameInput
+                  ? "bg-[#a08310] text-[#646669] cursor-not-allowed"
                   : "bg-[#e2b714] text-[#323437] hover:bg-[#e2b714]/90"
               }`}
             >

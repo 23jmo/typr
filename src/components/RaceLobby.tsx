@@ -29,7 +29,7 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
 }) => {
   // Calculate player count
   const playerCount = Object.keys(gameData.players).length;
-  const maxPlayers = gameData.maxPlayers || 8; // Use maxPlayers from gameData if available, otherwise default to 8
+  const maxPlayers = gameData.playerLimit || 8;
   
   // Count connected players
   const connectedPlayers = Object.values(gameData.players).filter(
@@ -159,11 +159,13 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
     const wordCount = gameData.text ? gameData.text.trim().split(/\s+/).length : 0;
     
     // Determine race type (custom or ranked)
-    const raceType = "ranked" in gameData && gameData.ranked ? "Ranked" : "Custom";
-    
-    // Get selected topic if available
-    const topic = gameData.selectedTopic || "Random";
-    
+    const raceType = "ranked" in gameData && (gameData as any).ranked ? "Ranked" : "Custom"; // Cast to any for ranked check if needed
+
+    // Use textSource and topic for display
+    const topic = gameData.textSource === 'topic'
+      ? (gameData.topic || 'N/A') // Use the topic name if source is topic
+      : gameData.textSource; // Display 'random' or 'custom'
+
     return { wordCount, raceType, topic };
   };
   
