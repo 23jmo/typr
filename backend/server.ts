@@ -730,12 +730,49 @@ io.on("connection", (socket: Socket) => {
 
   // Placeholder: Handle topic voting
   socket.on("submitVote", (data) => {
-    // TODO: Implement vote submission logic
     const userId = (socket as any).userId;
     const roomId = (socket as any).roomId;
-     console.log(`[Socket] Received submitVote from ${userId} in room ${roomId} for topic ${data?.topic}`);
-     // Validate state, update player vote, check if voting ends, broadcast
-     // broadcastRoomUpdate(roomId);
+    const topic = data?.topic;
+
+    console.log(`[Socket] Received submitVote from ${userId} in room ${roomId} for topic ${topic}`);
+
+    // --- Validation --- 
+    if (!userId || !roomId || !rooms[roomId] || !rooms[roomId].players[userId]) {
+        console.log(`[Vote] Invalid request: userId=${userId}, roomId=${roomId}`);
+        return;
+    }
+
+    const room = rooms[roomId];
+    const player = room.players[userId];
+
+    if (room.status !== 'voting') {
+        console.log(`[Vote] Cannot vote in room ${roomId} (status: ${room.status})`);
+        return;
+    }
+
+    // Validate topic against available options
+    if (!topic || !room.topicOptions?.includes(topic)) {
+        console.log(`[Vote] Invalid topic voted for in room ${roomId}: ${topic}`);
+        // Optionally send an error back to the client?
+        // socket.emit('error', { message: 'Invalid topic selection.' });
+        return;
+    }
+
+    // --- Update Player Vote --- 
+    player.vote = topic;
+    console.log(`[Vote] Player ${player.name} in room ${roomId} voted for ${topic}`);
+
+    // Validate state, update player vote, check if voting ends, broadcast
+    broadcastRoomUpdate(roomId); // Broadcast the update
+
+    // --- Check if all players have voted --- 
+    const connectedPlayers = Object.values(room.players).filter(p => p.connected);
+    const allVoted = connectedPlayers.length > 0 && connectedPlayers.every(p => !!p.vote);
+
+    if (allVoted) {
+        console.log(`[Vote] All connected players have voted in room ${roomId}. Ending voting early.`);
+        handleVotingEnd(roomId); // End voting immediately
+    }
   });
 
   // --- NEW HANDLER: Request Play Again ---
