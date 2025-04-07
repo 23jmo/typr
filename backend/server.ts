@@ -1,6 +1,7 @@
 import { Server, Socket } from "socket.io";
 import * as http from 'http'; // Correct import for built-in module
 import OpenAI from "openai";
+import { createClient, RedisClientType } from 'redis'; // Import Redis
 
 require("dotenv").config();
 const express = require("express");
@@ -10,6 +11,24 @@ const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app); // Create HTTP server from Express app
+
+// --- Redis Client Setup ---
+const redisClient: RedisClientType = createClient({
+  // Use redis:// for non-TLS, rediss:// for TLS
+  url: `redis://default:${process.env.REDIS_PASSWORD}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`
+});
+
+redisClient.on('error', (err) => console.error('[Redis] Client Error', err));
+
+// Connect to Redis (handle async connection)
+(async () => {
+  try {
+    await redisClient.connect();
+    console.log('[Redis] Client Connected');
+  } catch (err) {
+    console.error('[Redis] Could not connect to Redis:', err);
+  }
+})();
 
 // --- Socket.io Setup ---
 const io = new Server(server, {
@@ -307,29 +326,33 @@ const startCountdown = (roomId: string) => { // Define before potential use in h
         console.log(`[Countdown] Room ${roomId} not found.`);
         return;
     }
-    // Check for states that should PREVENT starting a countdown
-    if (room.status === 'racing' || room.status === 'finished' || room.status === 'countdown') {
-        console.log(`[Countdown] Cannot start countdown for room ${roomId}. Invalid Status: ${room.status}`);
+    // Check for states that should PREVENT scheduling the end of countdown
+    if (room.status === 'racing' || room.status === 'finished') { 
+        console.log(`[Countdown] Cannot schedule end for room ${roomId}. Invalid Status: ${room.status}`);
         return;
     }
-    // If the code reaches here, the status must be 'waiting' or 'voting', which is valid.
-    console.log(`[Countdown] Starting countdown for room ${roomId} from status: ${room.status}`); // Add more context to log
-
-    // Clear any existing timers
-    if (room.countdownTimer) {
-        clearTimeout(room.countdownTimer);
+    // If status is 'waiting' or 'voting', we initiate the countdown.
+    // If status is already 'countdown', we just ensure the timeout is set.
+    if (room.status !== 'countdown') {
+         console.log(`[Countdown] Initiating countdown for room ${roomId} from status: ${room.status}`); 
+         room.status = 'countdown';
+         room.countdownStartedAt = Date.now();
+         // Reset player ready states if transitioning from waiting/voting (optional but good practice)
+         Object.values(room.players).forEach(p => p.ready = false); 
+         // Broadcast the countdown start if it wasn't already in countdown
+         broadcastRoomUpdate(roomId);
+    } else {
+         console.log(`[Countdown] Room ${roomId} is already in countdown. Ensuring timeout is set.`);
     }
 
-    console.log(`[Countdown] Starting countdown for room ${roomId}`);
-    room.status = 'countdown';
-    room.countdownStartedAt = Date.now();
-    // Reset player ready states for the next round (optional, but good practice)
-    Object.values(room.players).forEach(p => p.ready = false);
-
-    // Broadcast the countdown start
-    broadcastRoomUpdate(roomId);
+    // Clear any existing *countdown* timer before setting a new one
+    if (room.countdownTimer) {
+        clearTimeout(room.countdownTimer);
+         console.log(`[Countdown] Cleared existing countdown timer for room ${roomId}`);
+    }
 
     // Schedule the transition to racing
+    console.log(`[Countdown] Scheduling transition to racing for room ${roomId} in ${COUNTDOWN_DURATION_MS}ms`);
     room.countdownTimer = setTimeout(() => {
         const currentRoom = rooms[roomId]; // Re-fetch room state
         // Check if room still exists and is still in countdown phase
@@ -528,6 +551,197 @@ app.post("/api/openai", async (req, res, next) => {
     }
 });
 
+// --- Matchmaking Queue (Redis Key) ---
+const MATCHMAKING_QUEUE_KEY = "matchmakingQueue";
+
+// --- Matchmaking Player Data ---
+interface MatchmakingPlayerData {
+  userId: string;
+  username: string;
+  elo: number;
+  socketId: string; // Store socket ID to communicate directly
+  timestamp: number; // Time they entered the queue
+}
+
+// --- NEW: Core Matchmaking Logic ---
+const ELO_RANGE = 100; // Example: Match players within 100 ELO points
+const MAX_WAIT_TIME_SECONDS = 60; // Max time a player waits before widening search (optional)
+
+const tryMatchmaking = async (playerData: MatchmakingPlayerData) => {
+    console.log(`[Matchmaking] Attempting to find match for ${playerData.username} (ELO: ${playerData.elo})`);
+    if (!redisClient.isReady) {
+        console.error("[Matchmaking] Redis client not ready.");
+        return; // Cannot proceed without Redis
+    }
+
+    const { userId, username, elo, socketId } = playerData;
+
+    // Define the ELO search range
+    const minElo = elo - ELO_RANGE;
+    const maxElo = elo + ELO_RANGE;
+
+    try {
+        // <<< START TEMPORARY DEBUG >>>
+        try {
+            const allMembers = await redisClient.zRangeWithScores(MATCHMAKING_QUEUE_KEY, 0, -1); // Get all members
+            console.log(`[Matchmaking Debug] Current full queue before range search (${allMembers.length} members):`, JSON.stringify(allMembers));
+        } catch(debugError) {
+            console.error("[Matchmaking Debug] Error fetching full queue:", debugError);
+        }
+        // <<< END TEMPORARY DEBUG >>>
+
+        // 1. Find potential opponents in the queue within the ELO range
+        console.log(`[Matchmaking Debug] Querying Redis for range using zRangeByScoreWithScores: Key=${MATCHMAKING_QUEUE_KEY}, MinSCORE=${minElo}, MaxSCORE=${maxElo}`);
+        // --- Use zRangeByScoreWithScores --- 
+        const potentialOpponents = await redisClient.zRangeByScoreWithScores(
+            MATCHMAKING_QUEUE_KEY, 
+            minElo, 
+            maxElo
+        );
+
+        // Result is already [{ value: string, score: number }, ...]
+
+        console.log(`[Matchmaking] Found ${potentialOpponents.length} potential opponents for ${username} in range [${minElo}-${maxElo}]. Raw result: ${JSON.stringify(potentialOpponents)}`); // Log raw result too
+
+        let opponentData: MatchmakingPlayerData | null = null;
+        let opponentQueueEntry: string | null = null; // Store the raw string from Redis
+
+        // 2. Iterate through potential opponents (excluding self)
+        for (const opponent of potentialOpponents) {
+            // opponent.value is the stringified MatchmakingPlayerData
+            // opponent.score is the ELO
+            const parsedOpponent = JSON.parse(opponent.value) as MatchmakingPlayerData;
+
+            // Don't match with self
+            if (parsedOpponent.userId === userId) {
+                continue;
+            }
+
+            // Basic check: ensure opponent is still connected (can be improved)
+            // This relies on the disconnect handler cleaning up the queue promptly.
+            // A more robust check might involve pinging the opponent's socketId.
+            const opponentSocket = io.sockets.sockets.get(parsedOpponent.socketId);
+            if (!opponentSocket) {
+                console.warn(`[Matchmaking] Found potential opponent ${parsedOpponent.username} (${parsedOpponent.userId}) but their socket ${parsedOpponent.socketId} is disconnected. Removing from queue.`);
+                // Clean up stale entry
+                await redisClient.zRem(MATCHMAKING_QUEUE_KEY, opponent.value);
+                continue;
+            }
+
+
+            console.log(`[Matchmaking] Found suitable opponent: ${parsedOpponent.username} (ELO: ${opponent.score}) for ${username}`);
+            opponentData = parsedOpponent;
+            opponentQueueEntry = opponent.value;
+            break; // Found a match, stop searching
+        }
+
+        // 3. If an opponent was found
+        if (opponentData && opponentQueueEntry) {
+            console.log(`[Matchmaking] Match found: ${username} vs ${opponentData.username}`);
+
+            // 4. Remove both players from the queue atomically (optional, but safer)
+            //    Using ZREM for simplicity here. A transaction (MULTI/EXEC) could be used.
+            const playerQueueEntry = JSON.stringify(playerData); // Get the string representation of the current player
+            const removedCount = await redisClient.zRem(MATCHMAKING_QUEUE_KEY, [playerQueueEntry, opponentQueueEntry]);
+
+            if (removedCount < 2) {
+                 // This could happen if the opponent disconnected *just* before ZREM
+                 console.warn(`[Matchmaking] Failed to remove both players from queue (removed ${removedCount}). One might have disconnected or been matched already. Aborting match.`);
+                 // If we removed the current player but not the opponent, add opponent back? Complex recovery.
+                 // For now, just abort. The other player might find another match later.
+                 return;
+            }
+             console.log(`[Matchmaking] Removed ${username} and ${opponentData.username} from queue.`);
+
+            // 5. Create a new room
+            const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+            console.log(`[Matchmaking] Creating room ${roomId} for the match.`);
+            const roomText = generateRandomText(10); // Generate 10 words for the match
+
+            const newRoom: RoomData = {
+                id: roomId,
+                name: `Ranked Match ${roomId}`,
+                status: "countdown", // Start directly in countdown
+                createdAt: Date.now(),
+                timeLimit: 60, // Standard 1 minute for ranked
+                textLength: roomText.split(" ").length, // Approx word count
+                playerLimit: 2,
+                isRanked: true,
+                players: {
+                    [userId]: {
+                        id: userId,
+                        name: username,
+                        wpm: 0, accuracy: 100, progress: 0, ready: true, // Auto-ready for ranked
+                        connected: true,
+                        finished: false,
+                    },
+                    [opponentData.userId]: {
+                        id: opponentData.userId,
+                        name: opponentData.username,
+                        wpm: 0, accuracy: 100, progress: 0, ready: true, // Auto-ready for ranked
+                        connected: true,
+                        finished: false,
+                    },
+                },
+                text: roomText,
+                textSource: "random",
+                topic: null,
+                hostId: userId, // Assign host arbitrarily
+                countdownStartedAt: Date.now(), // Set countdown start time immediately
+                // Timers will be set by startCountdown
+            };
+
+            rooms[roomId] = newRoom;
+            console.log(`[Matchmaking] Room ${roomId} created with status 'countdown'.`);
+
+            // 6. Notify both players about the match found
+            // It's crucial to emit to the specific socket IDs stored in Redis
+            io.to(socketId).emit("matchFound", { roomId });
+            io.to(opponentData.socketId).emit("matchFound", { roomId });
+            console.log(`[Matchmaking] Sent 'matchFound' to ${username} (${socketId}) and ${opponentData.username} (${opponentData.socketId}) for room ${roomId}`);
+
+            // 7. Add players to the Socket.IO room and trigger countdown timer setup
+            // Get the socket instances
+            const playerSocket = io.sockets.sockets.get(socketId);
+            const opponentSocket = io.sockets.sockets.get(opponentData.socketId);
+
+            if (playerSocket) {
+                playerSocket.join(roomId);
+                 // Store room/user info on socket for consistency with joinRoom
+                (playerSocket as any).userId = userId;
+                (playerSocket as any).roomId = roomId;
+                 console.log(`[Matchmaking] Added ${username} (${socketId}) to socket room ${roomId}`);
+            } else {
+                 console.warn(`[Matchmaking] Could not find socket ${socketId} for player ${username} to join room ${roomId}`);
+            }
+            if (opponentSocket) {
+                opponentSocket.join(roomId);
+                (opponentSocket as any).userId = opponentData.userId;
+                (opponentSocket as any).roomId = roomId;
+                 console.log(`[Matchmaking] Added ${opponentData.username} (${opponentData.socketId}) to socket room ${roomId}`);
+            } else {
+                 console.warn(`[Matchmaking] Could not find socket ${opponentData.socketId} for opponent ${opponentData.username} to join room ${roomId}`);
+            }
+
+            // Small delay before *scheduling the end* of countdown to allow clients to process 'matchFound'
+            setTimeout(() => {
+                 console.log(`[Matchmaking] Scheduling end of countdown for matched room ${roomId}`);
+                 // Call startCountdown primarily to set the timeout for the transition to 'racing'
+                 startCountdown(roomId); 
+             }, 500); // Delay might still be useful for client sync
+
+        } else {
+            console.log(`[Matchmaking] No suitable opponent found for ${username} yet.`);
+            // Player remains in the queue
+        }
+
+    } catch (error) {
+        console.error("[Matchmaking] Error during matchmaking attempt:", error);
+        // Consider removing the player from the queue if an error occurs?
+        // Or just log and let them retry? For now, just log.
+        // await redisClient.zRem(MATCHMAKING_QUEUE_KEY, JSON.stringify(playerData));
+    }
+};
 
 // --- Socket.io Event Handlers ---
 io.on("connection", (socket: Socket) => {
@@ -811,11 +1025,172 @@ io.on("connection", (socket: Socket) => {
     }
   });
 
+  // --- NEW: Handle Find Match ---
+  socket.on("findMatch", async (data) => {
+    // Basic validation
+    if (!data || !data.userId || !data.username || data.elo === undefined || data.elo === null) {
+        console.warn(`[Socket] Invalid findMatch request from ${socket.id}:`, data);
+        socket.emit("matchmakingError", { message: "Invalid user data provided for matchmaking." });
+        return;
+    }
+    if (!redisClient.isReady) {
+        console.error("[Socket findMatch] Redis client not ready.");
+        socket.emit("matchmakingError", { message: "Matchmaking service temporarily unavailable. Please try again soon." });
+        return;
+    }
+
+    const { userId, username, elo } = data;
+    const playerData: MatchmakingPlayerData = {
+        userId,
+        username,
+        elo,
+        socketId: socket.id,
+        timestamp: Date.now(),
+    };
+    // const queueEntry = JSON.stringify(playerData); // Don't stringify yet
+
+    try {
+         console.log(`[Socket] User ${username} (${userId}, ELO: ${elo}) requested findMatch.`);
+         
+         // --- BEGIN PREVENT DUPLICATES --- 
+         console.log(`[Socket] Checking for existing queue entries for userId: ${userId}`);
+         const queueMembers = await redisClient.zRange(MATCHMAKING_QUEUE_KEY, 0, -1);
+         const entriesToRemove: string[] = [];
+         for (const member of queueMembers) {
+             try {
+                 const parsedMember = JSON.parse(member) as MatchmakingPlayerData;
+                 if (parsedMember.userId === userId) {
+                     console.log(`[Socket] Found existing entry for ${userId} (socket: ${parsedMember.socketId}). Marking for removal.`);
+                     entriesToRemove.push(member);
+                 }
+             } catch (parseError) {
+                  console.error(`[Socket findMatch Pre-Check] Error parsing queue member: ${member}`, parseError);
+                  // Optionally remove malformed entry to keep queue clean
+                  entriesToRemove.push(member); 
+             }
+         }
+         if (entriesToRemove.length > 0) {
+             console.log(`[Socket] Removing ${entriesToRemove.length} stale queue entries for ${userId}.`);
+             await redisClient.zRem(MATCHMAKING_QUEUE_KEY, entriesToRemove);
+         }
+         // --- END PREVENT DUPLICATES --- 
+
+         // Check if already in queue (e.g., duplicate request) - This check is now less critical but can stay
+         // const existingScore = await redisClient.zScore(MATCHMAKING_QUEUE_KEY, queueEntry); 
+         // if (existingScore !== null) { ... }
+
+        // Add player to the sorted set (queue) with ELO as the score
+        const newQueueEntry = JSON.stringify(playerData); // Stringify the latest player data
+        await redisClient.zAdd(MATCHMAKING_QUEUE_KEY, {
+            score: elo,
+            value: newQueueEntry,
+        });
+         console.log(`[Socket] Added ${username} (socket: ${socket.id}) to matchmaking queue.`);
+         socket.emit("searchingForMatch"); // Inform client they are now searching
+
+        // Store userId on socket *after* successfully adding to queue
+        (socket as any).userId = userId; 
+
+        // Attempt to find a match immediately
+        await tryMatchmaking(playerData);
+
+    } catch (error) {
+        console.error(`[Socket] Error during findMatch for user ${username}:`, error);
+        socket.emit("matchmakingError", { message: "Failed to enter matchmaking. Please try again." });
+    }
+  });
+
+  // --- NEW: Handle Cancel Matchmaking ---
+  socket.on("cancelMatchmaking", async () => {
+      const userId = (socket as any).userId; // Assuming userId is stored on socket after findMatch
+      const socketId = socket.id;
+       console.log(`[Socket] Received cancelMatchmaking from socket ${socketId}, user ID might be ${userId}`);
+
+      if (!redisClient.isReady) {
+           console.error("[Socket cancelMatchmaking] Redis client not ready.");
+           // Don't necessarily need to emit error back if user explicitly cancelled
+           return;
+      }
+
+       // We need to find the player's entry in the queue using their socket ID,
+       // as their ELO might have changed or userId might not be set reliably yet.
+       // This is less efficient than removing by exact value+score, but necessary.
+      try {
+          // Retrieve all entries (consider limiting if queue gets huge)
+           const queueMembers = await redisClient.zRange(MATCHMAKING_QUEUE_KEY, 0, -1);
+           let entryToRemove: string | null = null;
+           for (const member of queueMembers) {
+                try {
+                    const parsedMember = JSON.parse(member) as MatchmakingPlayerData;
+                    if (parsedMember.socketId === socketId) {
+                        entryToRemove = member;
+                         console.log(`[Socket] Found entry to remove for cancelMatchmaking: ${parsedMember.username}`);
+                        break;
+                    }
+                } catch (parseError) {
+                     console.error(`[Socket cancelMatchmaking] Error parsing queue member: ${member}`, parseError);
+                     // Optionally remove malformed entry?
+                     // await redisClient.zRem(MATCHMAKING_QUEUE_KEY, member);
+                }
+           }
+
+           if (entryToRemove) {
+                const removedCount = await redisClient.zRem(MATCHMAKING_QUEUE_KEY, entryToRemove);
+                if (removedCount > 0) {
+                     console.log(`[Socket] Removed user (socket: ${socketId}) from matchmaking queue successfully.`);
+                     socket.emit("matchmakingCancelled"); // Confirm cancellation
+                } else {
+                     console.log(`[Socket] Could not remove user (socket: ${socketId}) from queue (maybe already matched or removed).`);
+                }
+           } else {
+                console.log(`[Socket] User (socket: ${socketId}) requested cancelMatchmaking but was not found in the queue.`);
+           }
+      } catch (error) {
+           console.error(`[Socket] Error cancelling matchmaking for socket ${socketId}:`, error);
+           // Optionally emit an error back to the client
+           // socket.emit("matchmakingError", { message: "Error cancelling matchmaking." });
+      }
+  });
+
   // Handle disconnection
-  socket.on("disconnect", (reason) => {
+  socket.on("disconnect", async (reason) => { // Make async
     console.log(`[Socket] User disconnected: ${socket.id}, reason: ${reason}`);
     const userId = (socket as any).userId;
     const roomId = (socket as any).roomId;
+
+    // --- BEGIN Matchmaking Queue Cleanup ---
+    if (redisClient.isReady) {
+         console.log(`[Disconnect] Checking matchmaking queue for disconnected socket ${socket.id}`);
+         // Similar logic to cancelMatchmaking: find and remove based on socket ID
+         try {
+             const queueMembers = await redisClient.zRange(MATCHMAKING_QUEUE_KEY, 0, -1);
+             let entryToRemove: string | null = null;
+             for (const member of queueMembers) {
+                 try {
+                     const parsedMember = JSON.parse(member) as MatchmakingPlayerData;
+                     if (parsedMember.socketId === socket.id) {
+                         entryToRemove = member;
+                          console.log(`[Disconnect] Found disconnected user ${parsedMember.username} in matchmaking queue. Removing.`);
+                         break;
+                     }
+                 } catch (parseError) {
+                     console.error(`[Disconnect] Error parsing queue member during disconnect cleanup: ${member}`, parseError);
+                 }
+             }
+             if (entryToRemove) {
+                 await redisClient.zRem(MATCHMAKING_QUEUE_KEY, entryToRemove);
+                  console.log(`[Disconnect] Removed user (socket: ${socket.id}) from matchmaking queue.`);
+             } else {
+                  console.log(`[Disconnect] Disconnected user (socket: ${socket.id}) was not in the matchmaking queue.`);
+             }
+         } catch (error) {
+              console.error(`[Disconnect] Error cleaning matchmaking queue for socket ${socket.id}:`, error);
+         }
+    } else {
+         console.warn(`[Disconnect] Redis client not ready, cannot clean matchmaking queue for socket ${socket.id}`);
+    }
+    // --- END Matchmaking Queue Cleanup ---
+
 
     if (userId && roomId && rooms[roomId] && rooms[roomId].players[userId]) {
       const room = rooms[roomId];
