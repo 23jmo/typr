@@ -7,6 +7,8 @@ import PerformanceGraph from "../components/ranked/PerformanceGraph";
 import { MatchData } from "../types";
 import { FaClock, FaUsers, FaBolt, FaChevronRight } from "react-icons/fa";
 import { leaderboardService } from "../services/firebase";
+import { useNavigate } from "react-router-dom";
+import { socket } from "../services/socket.ts";
 
 // Define rank key type for type safety
 type RankKey = 'plastic' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'cherryMX';
@@ -34,6 +36,13 @@ const Ranked = () => {
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [leaderboardLastUpdated, setLeaderboardLastUpdated] = useState<string | null>(null);
   const [updatingLeaderboard, setUpdatingLeaderboard] = useState(false);
+  const navigate = useNavigate();
+
+  // --- NEW Matchmaking State ---
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
+  const [elapsedSearchTime, setElapsedSearchTime] = useState(0);
+  const [matchmakingError, setMatchmakingError] = useState<string | null>(null);
 
   // Fetch leaderboard data
   useEffect(() => {
@@ -240,22 +249,121 @@ const Ranked = () => {
     return Math.round((wins / total) * 100);
   };
 
+  // --- UPDATED: Start Matchmaking ---
   const handleFindMatch = () => {
-    setMatchMaking(true);
+     if (!userData) {
+         setMatchmakingError("Please log in to play ranked matches.");
+         return;
+     }
+     if (!socket || !socket.connected) {
+          setMatchmakingError("Not connected to server. Please refresh.");
+          return;
+     }
+     console.log("Initiating findMatch...");
+     setMatchmakingError(null);
+     setIsSearching(true); // Set searching state immediately for responsiveness
+     setSearchStartTime(Date.now());
+     socket.emit("findMatch", {
+         userId: userData.uid,
+         username: userData.username,
+         elo: userData.stats?.overall?.elo || 0, // Send current ELO
+     });
   };
 
-  const handleMatchFound = () => {
-    setMatchFound(true);
+  // --- NEW: Cancel Matchmaking ---
+  const handleCancelMatchmaking = () => {
+      if (!socket) return;
+      console.log("Cancelling matchmaking...");
+      socket.emit("cancelMatchmaking");
+      // State updates (isSearching=false, etc.) will be handled by the 'matchmakingCancelled' event listener
   };
 
-  const handleMatchFinished = () => {
-    setMatchFinished(true);
-  };
+  // --- Socket Listeners Effect ---
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMatchFound = (data: { roomId: string }) => {
+        console.log(`[Socket] Match found! Room ID: ${data.roomId}`);
+        setIsSearching(false);
+        setSearchStartTime(null);
+        setElapsedSearchTime(0);
+        // Navigate to the RaceRoom page
+        navigate(`/race/${data.roomId}`);
+    };
+
+    const handleSearching = () => {
+        console.log("[Socket] Now searching for match...");
+        setIsSearching(true);
+        setSearchStartTime(Date.now());
+        setMatchmakingError(null); // Clear previous errors
+    };
+
+    const handleAlreadyInQueue = () => {
+         console.log("[Socket] Already in queue.");
+         setIsSearching(true); // Ensure state reflects searching
+         if (!searchStartTime) setSearchStartTime(Date.now()); // Set start time if not already set
+         setMatchmakingError(null);
+    };
+
+    const handleError = (data: { message: string }) => {
+        console.error("[Socket] Matchmaking Error:", data.message);
+        setIsSearching(false);
+        setSearchStartTime(null);
+        setElapsedSearchTime(0);
+        setMatchmakingError(data.message || "An unknown matchmaking error occurred.");
+    };
+
+    const handleCancelled = () => {
+         console.log("[Socket] Matchmaking cancelled by server/user.");
+         setIsSearching(false);
+         setSearchStartTime(null);
+         setElapsedSearchTime(0);
+         setMatchmakingError(null);
+    };
+
+    socket.on("matchFound", handleMatchFound);
+    socket.on("searchingForMatch", handleSearching);
+    socket.on("alreadyInQueue", handleAlreadyInQueue);
+    socket.on("matchmakingError", handleError);
+    socket.on("matchmakingCancelled", handleCancelled);
+
+    // Cleanup listeners on component unmount
+    return () => {
+      socket.off("matchFound", handleMatchFound);
+      socket.off("searchingForMatch", handleSearching);
+      socket.off("alreadyInQueue", handleAlreadyInQueue);
+      socket.off("matchmakingError", handleError);
+      socket.off("matchmakingCancelled", handleCancelled);
+    };
+  }, [navigate, searchStartTime]); // Add searchStartTime dependency
+
+  // --- Timer Effect for Search Time ---
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+    if (isSearching && searchStartTime) {
+      intervalId = setInterval(() => {
+        setElapsedSearchTime(Math.floor((Date.now() - searchStartTime) / 1000));
+      }, 1000);
+    } else {
+      setElapsedSearchTime(0);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isSearching, searchStartTime]);
 
   return (
     <div className="min-h-screen overflow-y-auto">
-      {matchMaking ? (
-        <MatchmakingScreen />
+      {/* --- Conditionally render MatchmakingScreen or Ranked Home Page --- */}
+      {isSearching ? (
+        <MatchmakingScreen
+           searchTime={elapsedSearchTime}
+           onCancel={handleCancelMatchmaking}
+           error={matchmakingError} // Pass error message
+         />
       ) : (
         <div className="max-w-7xl mx-auto p-4 pt-20 pb-8">
           {/* Header Section */}
@@ -263,6 +371,14 @@ const Ranked = () => {
             <h1 className="text-3xl font-bold text-[#d1d0c5]">Ranked Mode</h1>
             <p className="text-[#646669]">Compete against others and climb the leaderboard</p>
           </div>
+
+           {/* Display Matchmaking Error if any */}
+           {matchmakingError && !isSearching && (
+             <div className="bg-red-500/20 border border-red-600 text-red-300 p-4 rounded-lg mb-6 flex justify-between items-center">
+               <span>Error: {matchmakingError}</span>
+               <button onClick={() => setMatchmakingError(null)} className="text-red-200 hover:text-white">&times;</button>
+             </div>
+           )}
 
           <div className="flex flex-col lg:flex-row gap-6">
             <div className="w-full lg:w-3/4">
@@ -309,10 +425,11 @@ const Ranked = () => {
                 
                 <p className="text-[#646669] mb-6">Race against an opponent of similar skill for 1 minute. The player with the highest WPM wins.</p>
                 
-                {/* Start Typing Button */}
-                <button 
-                  onClick={handleFindMatch}
-                  className="w-full bg-[#323437] hover:bg-[#e2b714] text-[#d1d0c5] hover:text-[#323437] font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center"
+                {/* UPDATED Start Typing Button */}
+                <button
+                  onClick={handleFindMatch} // Use the new handler
+                  disabled={isSearching} // Disable if already searching
+                  className="w-full bg-[#323437] hover:bg-[#e2b714] text-[#d1d0c5] hover:text-[#323437] font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="mr-2">Start Typing</span>
                   <FaChevronRight />
