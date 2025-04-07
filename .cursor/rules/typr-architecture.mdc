@@ -1,0 +1,137 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# TYPR Application Architecture
+
+This document outlines the architecture of the TYPR application, a type racing platform where users can race against each other through typing prompted text.
+
+## Current Architecture (Firebase-based)
+
+### Components
+
+1. **Frontend (React + TypeScript)**
+   - Built with React, TypeScript, and Tailwind CSS
+   - Communicates with Firebase for real-time updates and data storage
+   - Handles game UI, typing interface, and player interactions
+
+2. **Firebase Firestore**
+   - Primary database for storing game rooms, user data, and race results
+   - Used for real-time updates via polling and onSnapshot listeners
+   - Collections include:
+     - `gameRooms`: Stores active game instances
+     - `users`: Stores user profiles and statistics
+     - `rankedQueue`: Manages matchmaking for ranked games
+     - `leaderboards`: Tracks top players
+
+3. **Firebase Cloud Functions**
+   - `handleGameStateChange`: Monitors game room state changes and handles transitions
+   - Ranked matchmaking logic
+   - Post-game stats updates
+   - Leaderboard generation
+
+4. **Node.js Backend (Limited Role)**
+   - Handles OpenAI API integration for generating text prompts
+   - Simple Express server with minimal involvement in core gameplay
+
+### Data Flow
+
+1. Game rooms are created and joined through Firestore writes
+2. Players update their typing progress by writing to Firestore documents
+3. Other players receive updates through Firestore listeners (polling)
+4. Game state transitions (waiting → countdown → racing → finished) are handled via Cloud Functions
+5. User stats and leaderboards are updated after game completion
+
+## Planned Architecture (WebSocket-based)
+
+### Components
+
+1. **Frontend (React + TypeScript)**
+   - Maintains the same UI components
+   - Replaces Firebase listeners with Socket.io client connections
+   - Communicates directly with the WebSocket server for real-time updates
+
+2. **WebSocket Server (Node.js + Socket.io)**
+   - Central hub for real-time game communication
+   - Maintains authoritative game state in memory
+   - Manages rooms and player connections
+   - Broadcasts game events and player progress
+   - Handles game logic (countdown, race start/end)
+
+3. **Redis**
+   - Facilitates matchmaking by storing player queue information
+   - Enables WebSocket scaling through Socket.io Redis adapter
+   - Provides fast in-memory storage for ephemeral game data
+
+4. **PostgreSQL**
+   - Persistent storage for completed match data
+   - Stores user profiles, statistics, and historical race results
+   - Enables complex queries for leaderboards and player history
+
+5. **Firebase (Reduced Role)**
+   - Continues to handle authentication
+   - Stores game state UI information (lobby, countdown, etc.)
+   - Frontend can directly read non-critical UI state
+   - Used for non-real-time data that doesn't require WebSocket performance
+
+6. **Firebase Cloud Functions (Maintenance)**
+   - Handles cleanup tasks and leaderboard updates
+   - Maintains integration with Firebase for background operations
+   - Separated from the real-time game flow
+
+### Data Flow
+
+1. **Client → Server**:
+   - Client sends exact text progress updates directly to the server via WebSockets
+   - When a player finishes typing, they send a "Finished" event to the server
+   - All real-time game interactions flow directly through WebSocket connections
+
+2. **Server → Client**:
+   - Server broadcasts typing progress of all other players to each client
+   - Server manages game state transitions and notifies all clients
+
+3. **Server → Databases**:
+   - Updates Firebase for non-critical UI state changes
+   - Stores match results in PostgreSQL after game completion
+   - Uses Redis for matchmaking and ephemeral data
+
+## Game Modes
+
+### Solo Mode
+- Practice typing with no opponents
+- Local progress tracking, results saved to user profile
+
+### Custom Game Mode
+- Create private games with custom settings
+- Share room code with friends to join
+- Custom text selection or topic-based generation
+
+### Ranked Mode
+- Matchmaking based on player ELO rating
+- Divisions and skill tiers (Bronze, Silver, Gold, etc.)
+- Leaderboard integration
+- Skill-based progression system
+
+## Authentication and User Management
+
+- Firebase Authentication for user accounts
+- User profiles with customizable usernames
+- Statistics tracking across game modes
+- ELO rating system for skill measurement
+
+## Performance Considerations
+
+The WebSocket architecture provides several advantages:
+- Reduced latency for real-time updates
+- Lower Firebase costs by eliminating frequent polling
+- More direct control over game state and logic
+- Improved scalability through Redis integration
+- Better security with server-side validation
+
+## Deployment Infrastructure
+
+- Frontend: Deployed via Firebase Hosting
+- WebSocket Server: Google Cloud Run (with WebSocket support flags)
+- Databases: Managed PostgreSQL and Redis instances
+- Monitoring: Cloud Logging and custom Socket.io event tracking 
