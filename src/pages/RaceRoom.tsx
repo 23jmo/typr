@@ -729,9 +729,6 @@ const RaceRoom = () => {
                     if (index < userInput.length) {
                      if(index < text.length) {
                         charColor = userInput[index] === text[index] ? "text-[#d1d0c5]" : "text-red-500";
-                        if (userInput[index] !== text[index]) {
-                            underline = "underline decoration-red-500 decoration-wavy";
-                        }
                      } else {
                          charColor = "text-red-600";
                      }
@@ -745,7 +742,7 @@ const RaceRoom = () => {
                     return (
                     <span key={index} className="char-wrapper inline-block">
                       <span
-                       className={`${charColor} ${underline} ${isSpace ? 'inline-block w-[0.5em]' : ''}`}
+                       className={`${charColor} ${isSpace ? 'inline-block w-[0.5em]' : ''}`}
                       >
                        {displayChar}
                       </span>
