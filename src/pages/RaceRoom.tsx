@@ -274,6 +274,8 @@ const RaceRoom = () => {
           console.log("[RaceRoom] Text length reached locally.");
           setIsFinished(true);
           socket.emit("playerFinished", {
+            finalWpm: currentWpm,
+            finalAccuracy: currentAccuracy
           });
         } else {
             if (updateTimeout.current) clearTimeout(updateTimeout.current);
