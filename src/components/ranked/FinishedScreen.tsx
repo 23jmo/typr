@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import StatsOverview from "../StatsOverview";
-import { GameData } from "../../types";
+import { GameData, Player, GameResult, CharStats } from "../../types";
 import { useUser } from "../../contexts/UserContext";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -25,6 +25,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { TOPIC_DESCRIPTIONS } from "../../constants/topicDescriptions";
+import { Socket } from 'socket.io-client';
 
 interface RankedGameData extends GameData {
   ranked: true;
@@ -36,13 +37,11 @@ interface FinishedScreenProps {
   wpm: number;
   accuracy: number;
   startTime: number;
-  wpmHistory: { wpm: number; time: number }[];
-  charStats: {
-    correct: number;
-    incorrect: number;
-    extra: number;
-    missed: number;
-  };
+  wpmHistory: Array<{ wpm: number; time: number }>;
+  charStats: CharStats;
+  socket: Socket | null;
+  roomState: GameData;
+  localUserId: string;
 }
 
 interface StatsUpdate {
@@ -61,6 +60,9 @@ const FinishedScreen = ({
   startTime,
   wpmHistory,
   charStats,
+  socket,
+  roomState,
+  localUserId
 }: FinishedScreenProps) => {
   const { userData, refreshUserData } = useUser();
   const userId = userData?.uid;
@@ -365,6 +367,22 @@ const FinishedScreen = ({
   // Check if this is a custom game (not ranked)
   const isCustomGame = !("ranked" in gameData);
 
+  const handlePlayAgain = () => {
+    if (socket) {
+      console.log("[FinishedScreen] Emitting requestPlayAgain");
+      socket.emit('requestPlayAgain');
+    }
+  };
+
+  const canPlayAgain = roomState.status === 'finished';
+  const localPlayerWantsPlayAgain = (roomState.players[localUserId] as Player | undefined)?.wantsPlayAgain;
+
+  // Use Player type from import
+  const finishedConnectedPlayers = Object.values(roomState.players).filter(p => (p as Player).connected);
+
+  // Use Player type from import
+  const winnerName = roomState.winner ? (roomState.players[roomState.winner] as Player | undefined)?.name : "N/A";
+
   return (
     <div className="fixed inset-0 bg-[#1e1e1e] flex flex-col items-center justify-start p-4 pt-6 overflow-y-auto">
       <div className="bg-[#2a2a2a] rounded-xl shadow-xl p-4 md:p-6 max-w-3xl w-full mx-auto my-2 border border-[#3a3a3a]">
@@ -532,7 +550,6 @@ const FinishedScreen = ({
           />
         </div>
 
-
         <div className="flex justify-center mt-8 gap-4">
           {isCustomGame && (
             <button
@@ -561,6 +578,36 @@ const FinishedScreen = ({
             <FaHome /> Back to Home
           </button>
         </div>
+
+        {/* Play Again Section */}
+        {canPlayAgain && (
+          <div className="mt-6 pt-6 border-t border-[#3c3e41]">
+            <h3 className="text-lg font-semibold mb-3">Play Again?</h3>
+            {/* List players and their play again status */}
+            <div className="space-y-1 mb-4 max-w-xs mx-auto">
+              {finishedConnectedPlayers.map(player => (
+                <div key={player.id} className="flex justify-between items-center text-sm px-2">
+                  <span className={`${player.id === localUserId ? 'font-semibold' : ''}`}>{player.name} {player.id === localUserId ? '(You)' : ''}</span>
+                  <span className={`px-2 py-0.5 rounded text-xs ${player.wantsPlayAgain ? 'bg-green-700 text-green-100' : 'bg-gray-600 text-gray-300'}`}>
+                    {player.wantsPlayAgain ? 'Ready' : 'Waiting'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={handlePlayAgain}
+              disabled={localPlayerWantsPlayAgain || !socket}
+              className={`px-6 py-2 rounded font-medium transition-colors ${
+                localPlayerWantsPlayAgain
+                  ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                  : 'bg-[#e2b714] text-[#323437] hover:bg-[#e2b714]/90'
+              }`}
+            >
+              {localPlayerWantsPlayAgain ? 'Waiting for others...' : 'Play Again'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -86,32 +86,46 @@ interface GameResult {
   totalTimePlayed: number;
 }
 
+// Updated Player type to match backend/socket usage
 interface Player {
-  connected?: boolean;
-  joinedAt?: any;
-  name?: string;
-  wpm?: number;
-  accuracy?: number;
-  progress?: number;
-  ready?: boolean;
-  finished?: boolean;
-  vote?: string; // The topic ID this player voted for
+  id: string; // Added ID
+  name: string;
+  wpm: number;
+  accuracy: number;
+  progress: number;
+  ready: boolean;
+  connected: boolean;
+  finished: boolean;
+  finishTime?: number | null; // Allows null
+  vote?: string;
+  wantsPlayAgain?: boolean; // Added
+  // Keep optional original fields if still used elsewhere?
+  joinedAt?: any; 
 }
 
-interface GameData {
-  players: { [key: string]: Player };
-  status: "waiting" | "countdown" | "racing" | "finished" | "voting";
+// Updated GameData type to match backend/socket usage (consider renaming to RoomData)
+interface GameData { // Or rename to RoomData
+  id: string; // Added ID
+  name: string; // Added name
+  status: "waiting" | "voting" | "countdown" | "racing" | "finished";
+  createdAt: number; // Added
+  timeLimit: number;
+  textLength: number; // Added
+  playerLimit: number; // Added (replaced maxPlayers?)
+  isRanked: boolean; // Added
+  players: { [playerId: string]: Player }; // Use updated Player type
   text: string;
-  startTime?: number;
-  countdownStartedAt?: number;
-  winner?: string;
-  timeLimit: number; // in seconds
-  maxPlayers?: number; // Maximum number of players allowed in the game
-  // New voting-related fields
-  topicOptions?: string[]; // List of topics to vote on
-  votingEndTime?: number | any; // Timestamp when voting ends (server-side)
-  clientVotingEndTime?: number; // Client-side timestamp for voting end time calculations
-  selectedTopic?: string; // The topic that was selected after voting
+  textSource: "random" | "topic" | "custom"; // Added
+  topic?: string | null; // Added (allows null)
+  hostId: string; // Added
+  countdownStartedAt?: number; // Kept from original
+  votingEndTime?: number | null; // Added (allows null, removed any type)
+  topicOptions?: string[]; // Kept from original
+  startTime?: number; // Kept from original
+  winner?: string; // Kept from original
+  // Remove fields no longer directly part of socket room state if desired
+  // clientVotingEndTime?: number; 
+  // selectedTopic?: string;
 }
 
 export type { UserData, GameResult, GameData, Player, RecentMatch };
