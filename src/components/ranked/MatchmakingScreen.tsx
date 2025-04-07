@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { useUser } from "../../contexts/UserContext";
-import { useNavigate } from "react-router-dom";
-import {
-  doc,
-  onSnapshot,
-  getDoc,
-  updateDoc,
-  deleteField,
-} from "firebase/firestore";
-import { db } from "../../services/firebase";
-import { matchmakingService } from "../../services/firebase";
+// Remove Firebase imports if no longer needed within this component
+// import { useUser } from "../../contexts/UserContext";
+// import { useNavigate } from "react-router-dom";
+// import {
+//   doc,
+//   onSnapshot,
+//   getDoc,
+//   updateDoc,
+//   deleteField,
+// } from "firebase/firestore";
+// import { db } from "../../services/firebase";
+// import { matchmakingService } from "../../services/firebase";
 
 const typingFacts = [
   "The QWERTY keyboard layout was designed to prevent typewriter jams by placing commonly used letter pairs far apart.",
@@ -26,120 +27,47 @@ const typingFacts = [
   "The first mechanical typewriter was invented in 1867 by Christopher Latham Sholes.",
 ];
 
-const MatchmakingScreen = () => {
-  const { userData } = useUser();
-  const navigate = useNavigate();
+// --- Define Props Interface ---
+interface MatchmakingScreenProps {
+  searchTime: number;
+  onCancel: () => void;
+  error: string | null;
+}
+
+// --- Update Component Signature to Accept Props ---
+const MatchmakingScreen: React.FC<MatchmakingScreenProps> = ({ searchTime, onCancel, error }) => {
+  // Remove internal state that's now passed via props
+  // const { userData } = useUser();
+  // const navigate = useNavigate();
   const [currentFactIndex, setCurrentFactIndex] = useState(0);
-  const [searchTime, setSearchTime] = useState(0);
+  // const [searchTime, setSearchTime] = useState(0); // Removed
   const [isFactChanging, setIsFactChanging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // const [error, setError] = useState<string | null>(null); // Removed
 
-  useEffect(() => {
-    if (!userData) return;
-    let unsubscribeListener: (() => void) | null = null;
+  // Remove Firebase useEffect logic
+  // useEffect(() => {
+  //   // ... Firebase matchmaking logic removed ...
+  // }, [userData, navigate]);
 
-    // Join queue
-    console.log("Joining queue");
-    const joinQueue = async () => {
-      try {
-        const existingGameId = await matchmakingService.joinQueue(
-          userData.uid,
-          userData
-        );
-
-        // If user is already in a game, redirect to that game (only if the game is not finished)
-        if (existingGameId) {
-          console.log(`User already in game ${existingGameId}, redirecting...`);
-          navigate(`/race/${existingGameId}`);
-          return;
-        }
-
-        // Listen for match
-        unsubscribeListener = onSnapshot(
-          doc(db, "users", userData.uid),
-          async (snapshot) => {
-            const data = snapshot.data();
-            if (data?.currentGame) {
-              console.log(
-                `[MatchmakingScreen] User has currentGame: ${data.currentGame}, checking status...`
-              );
-
-              // Check if the game is finished before redirecting
-              const gameDoc = await getDoc(
-                doc(db, "gameRooms", data.currentGame)
-              );
-
-              if (gameDoc.exists()) {
-                const gameData = gameDoc.data();
-                console.log(
-                  `[MatchmakingScreen] Game exists, status: ${gameData.status}`
-                );
-
-                if (gameData.status !== "finished") {
-                  console.log(
-                    `[MatchmakingScreen] Game is active, redirecting...`
-                  );
-                  navigate(`/race/${data.currentGame}`);
-                } else {
-                  console.log(
-                    `[MatchmakingScreen] Game is finished, cleaning up reference...`
-                  );
-                  // Game is finished, clean up the reference
-                  await updateDoc(doc(db, "users", userData.uid), {
-                    currentGame: deleteField(),
-                    "matchmaking.status": "idle",
-                  });
-                }
-              } else {
-                console.log(
-                  `[MatchmakingScreen] Game doesn't exist, cleaning up reference...`
-                );
-                // Game doesn't exist, clean up the reference
-                await updateDoc(doc(db, "users", userData.uid), {
-                  currentGame: deleteField(),
-                  "matchmaking.status": "idle",
-                });
-              }
-            }
-          }
-        );
-      } catch (error) {
-        console.error("Error joining queue:", error);
-        setError("Failed to join matchmaking queue. Please try again.");
-      }
-    };
-
-    joinQueue();
-
-    return () => {
-      if (unsubscribeListener) {
-        unsubscribeListener();
-      }
-      if (userData) {
-        matchmakingService.leaveQueue(userData.uid);
-      }
-    };
-  }, [userData, navigate]);
-
+  // Keep fact rotation and time formatting logic
   useEffect(() => {
     // Rotate facts every 5 seconds
     const factInterval = setInterval(() => {
       setIsFactChanging(true);
-      // Wait for exit animation
       setTimeout(() => {
         setCurrentFactIndex((prev) => (prev + 1) % typingFacts.length);
         setIsFactChanging(false);
       }, 500);
     }, 5000);
 
-    // Update search time every second
-    const timeInterval = setInterval(() => {
-      setSearchTime((prev) => prev + 1);
-    }, 1000);
+    // Remove search time interval - time is now passed via props
+    // const timeInterval = setInterval(() => {
+    //   setSearchTime((prev) => prev + 1);
+    // }, 1000);
 
     return () => {
       clearInterval(factInterval);
-      clearInterval(timeInterval);
+      // clearInterval(timeInterval);
     };
   }, []);
 
@@ -151,16 +79,11 @@ const MatchmakingScreen = () => {
 
   return (
     <div className="max-w-2xl mx-auto p-8 mt-20 text-center flex flex-col h-[calc(100vh-200px)]">
-      {/* Error Message */}
+      {/* --- Display Error from Props --- */}
       {error && (
-        <div className="bg-red-500 text-white p-4 rounded-lg mb-8">
-          {error}
-          <button
-            className="ml-4 underline"
-            onClick={() => navigate("/")}
-          >
-            Return to Home
-          </button>
+        <div className="bg-red-500/80 text-white p-4 rounded-lg mb-8 flex justify-between items-center">
+          <span>Error: {error}</span>
+          {/* Optionally add a dismiss button or let parent handle clearing */}
         </div>
       )}
 
@@ -187,6 +110,7 @@ const MatchmakingScreen = () => {
         <h1 className="text-5xl font-bold text-[#e2b714] mb-4">
           Finding a Match
         </h1>
+        {/* --- Use searchTime from Props --- */}
         <p className="text-2xl text-[#d1d0c5] mb-8">
           Search time: {formatTime(searchTime)}
         </p>
@@ -202,15 +126,12 @@ const MatchmakingScreen = () => {
         </div>
         <p className="text-[#646669]">Estimated wait time: ~30 seconds</p>
 
-        {/* Cancel Button */}
+        {/* --- Use onCancel Prop for Button --- */}
         <button
           className="mt-8 px-8 py-3 bg-[#323437] text-[#d1d0c5] rounded-lg hover:bg-[#e2b714] hover:text-[#323437] transition-all duration-200 text-lg"
-          onClick={() => {
-            matchmakingService.leaveQueue(userData?.uid || "");
-            navigate("/");
-          }}
+          onClick={onCancel}
         >
-          Cancel Queue
+          Cancel Search
         </button>
       </div>
 
