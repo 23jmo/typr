@@ -13,6 +13,7 @@ import {
   initOpenAI
 } from './topics';
 import { PlayerData, RoomData } from './types';
+import apiRoutes, { initRoutes } from './routes'; // Import the API routes
 
 require("dotenv").config();
 const express = require("express");
@@ -85,6 +86,10 @@ const text_request_schema = zod.object({
 
 // Initialize OpenAI
 initOpenAI(process.env.OPENAI_API_KEY!);
+
+// --- API Routes ---
+// Initialize the routes with the rooms reference
+app.use('/api', initRoutes(rooms));
 
 // --- Helper Functions ---
 const broadcastRoomUpdate = (roomId: string) => {
@@ -189,155 +194,8 @@ const resetRoomForNewGame = (roomId: string) => {
     broadcastRoomUpdate(roomId);
 };
 
-// --- API Endpoints ---
-
-// Schema for creating a room
-const createRoomSchema = zod.object({
-  username: zod.string().min(1),
-  userId: zod.string().min(1),
-  timeLimit: zod.number().int().min(15).max(180),
-  textLength: zod.number().int().min(10).max(200), // Assuming word count
-  playerLimit: zod.number().int().min(2).max(10),
-  isRanked: zod.boolean(),
-  textSource: zod.enum(["random", "topic", "custom"]),
-  selectedTopic: zod.string().optional(), // Required if textSource is 'topic'
-  customText: zod.string().optional(), // Required if textSource is 'custom'
-});
-
-app.post("/api/createRoom", async (req, res, next) => {
-  try {
-    const parsedBody = createRoomSchema.safeParse(req.body);
-
-    if (!parsedBody.success) {
-      return res.status(400).json({ error: "Invalid request body", details: parsedBody.error.errors });
-    }
-
-    const {
-      username,
-      userId,
-      timeLimit,
-      textLength,
-      playerLimit,
-      isRanked,
-      textSource,
-      selectedTopic,
-      customText,
-    } = parsedBody.data;
-
-    // Validate topic/custom text based on source
-    if (textSource === "topic" && !selectedTopic) {
-      return res.status(400).json({ error: "Topic is required when textSource is 'topic'" });
-    }
-    if (textSource === "custom" && (!customText || customText.trim().length < 10)) {
-      return res.status(400).json({ error: "Custom text must be at least 10 characters when textSource is 'custom'" });
-    }
-
-    const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    console.log(`[API] Attempting to create room ${roomId}`);
-
-    // Generate text
-    let gameText = "";
-    if (textSource === "topic") {
-        gameText = await generateTextByTopic(selectedTopic!, textLength); // Non-null assertion validated above
-    } else if (textSource === "random") {
-        gameText = generateRandomText(textLength); // Use local generation for random
-    } else {
-        gameText = customText!.trim(); // Non-null assertion validated above
-    }
-
-    const newRoom: RoomData = {
-      id: roomId,
-      name: `${username}'s Race`,
-      status: "waiting",
-      createdAt: Date.now(),
-      timeLimit,
-      textLength, // Store the requested length/word count
-      playerLimit,
-      isRanked,
-      players: {
-        [userId]: {
-          id: userId,
-          name: username,
-          wpm: 0,
-          accuracy: 100,
-          progress: 0,
-          ready: false, // Host starts as not ready
-          connected: false, // Will be set to true when they connect via socket
-          finished: false,
-        },
-      },
-      text: gameText,
-      textSource,
-      topic: textSource === "topic" ? selectedTopic : null,
-      hostId: userId,
-    };
-
-    rooms[roomId] = newRoom;
-    console.log(`[API] Room ${roomId} created successfully.`);
-    res.status(201).json({ roomId });
-
-  } catch (error) {
-    console.error("[API /api/createRoom] Error:", error);
-    next(error); // Pass to error handling middleware
-  }
-});
-
-// Schema for checking a room
-const checkRoomParamsSchema = zod.object({
-  roomId: zod.string().length(6),
-});
-
-app.get("/api/checkRoom/:roomId", (req, res) => {
-  const parsedParams = checkRoomParamsSchema.safeParse(req.params);
-
-  if (!parsedParams.success) {
-      return res.status(400).json({ error: "Invalid Room ID format" });
-  }
-
-  const { roomId } = parsedParams.data;
-  const room = rooms[roomId];
-
-  if (!room) {
-    return res.status(404).json({ error: "Room not found" });
-  }
-
-  // Check if joinable
-  if (room.status !== "waiting") {
-      return res.status(403).json({ error: "Game has already started" });
-  }
-  if (Object.keys(room.players).length >= room.playerLimit) {
-    return res.status(403).json({ error: "Room is full" });
-  }
-
-  // Room exists and is joinable
-  res.status(200).json({ message: "Room available" });
-});
-
-// --- OpenAI Endpoint (kept for now, might be refactored or removed if not needed) ---
-const textRequestSchema = zod.object({
-    topic: zod.string(),
-    length: zod.number().int().min(10).max(200).default(30), // Add length param
-});
-
-// Note: This endpoint might become redundant if text generation is handled
-// solely during room creation or voting.
-app.post("/api/openai", async (req, res, next) => {
-    try {
-        const parsedBody = textRequestSchema.safeParse(req.body);
-        if (!parsedBody.success) {
-            return res.status(400).json({ error: "Invalid request body", details: parsedBody.error.errors });
-        }
-        const { topic, length } = parsedBody.data;
-
-        // Re-use the helper function
-        const generatedText = await generateTextByTopic(topic, length);
-        res.json({ text: generatedText }); // Send as object
-
-    } catch (error) {
-        console.error("Error in /api/openai:", error);
-        next(error); // Pass to error handling middleware
-    }
-});
+// --- API Endpoints --- 
+// Moved to routes.ts
 
 // --- Matchmaking Queue (Redis Key) ---
 const MATCHMAKING_QUEUE_KEY = "matchmakingQueue";
