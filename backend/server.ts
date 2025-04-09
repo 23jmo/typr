@@ -6,7 +6,7 @@ import { RoomData } from './types';
 import apiRoutes, { initRoutes } from './routes'; // Import the API routes
 import { initMatchmaking } from './matchmaking'; // Import matchmaking module
 import { initRoomManager } from './roomManager'; // Import room manager module
-import { initSocketHandlers } from './socketHandlers'; // Import socket handlers module
+import { initSocketHandlers } from './socketHandlers/index'; // Import socket handlers module
 
 require("dotenv").config();
 const express = require("express");
