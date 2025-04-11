@@ -1,62 +1,50 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
-import StatsOverview from "../components/StatsOverview";
-import { GameResult } from "../types";
-import { auth, userService } from "../services/firebase";
 import FinishedScreen from "../components/ranked/FinishedScreen";
 import { Player as PlayerData, GameData as RoomData } from "../types";
 import { useUser } from "../contexts/UserContext";
 import CountdownAnimation from "../components/CountdownAnimation";
 import TopicVotingScreen from "../components/TopicVotingScreen";
 import RaceLobby from "../components/RaceLobby";
-
-const SAMPLE_TEXT = "Connecting to server...";
-
-const cursorStyle = "absolute w-0.5 h-[1.2em] bg-[#d1d0c5] left-0 top-1 animate-pulse transition-transform duration-75";
-
-const GHOST_CURSOR_COLORS = [
-  "bg-red-500",
-  "bg-blue-500",
-  "bg-purple-500",
-  "bg-pink-500",
-  "bg-indigo-500",
-  "bg-teal-500",
-];
-
-const BACKEND_URL = "http://localhost:5001";
+import { GHOST_CURSOR_COLORS, BACKEND_URL, SAMPLE_TEXT } from "../constants/race";
+import { getCursorCoordinates, resetLocalGameState } from "../utils/race";
 
 const RaceRoom = () => {
+  // Route and User Context
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { userData } = useUser();
   const localUserId = userData?.uid;
   const localUsername = userData?.username || "Anonymous";
 
+  // Socket Connection State
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [socketError, setSocketError] = useState<string | null>(null);
-
   const [roomState, setRoomState] = useState<RoomData | null>(null);
-  const text = roomState?.text || SAMPLE_TEXT;
 
+  // Game State
   const [userInput, setUserInput] = useState("");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [wpm, setWpm] = useState(0);
   const [accuracy, setAccuracy] = useState(100);
   const [isFinished, setIsFinished] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
-  const textContainerRef = useRef<HTMLDivElement>(null);
   const [wpmHistory, setWpmHistory] = useState<Array<{ wpm: number; time: number }>>([]);
   const [charStats, setCharStats] = useState({ correct: 0, incorrect: 0, extra: 0, missed: 0 });
   const [opponentCursors, setOpponentCursors] = useState<{ [playerId: string]: { position: number; color: string } }>({});
-
   const [countdown, setCountdown] = useState<number | null>(null);
+
+  // Refs
+  const textContainerRef = useRef<HTMLDivElement>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const updateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const THROTTLE_INTERVAL = 500;
+  const text = roomState?.text || SAMPLE_TEXT;
 
+  // =========================================
+  // Socket Connection Effect
+  // =========================================
   useEffect(() => {
     if (!roomId || !localUserId) {
       console.log("[RaceRoom] Waiting for roomId or userId...");
@@ -118,6 +106,21 @@ const RaceRoom = () => {
     });
 
     newSocket.on("opponentProgress", (data: { userId: string; progress: number; wpm: number }) => {
+      setRoomState(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          players: {
+            ...prev.players,
+            [data.userId]: {
+              ...prev.players[data.userId],
+              progress: data.progress,
+              wpm: data.wpm,
+              connected: true
+            }
+          }
+        };
+      });
     });
 
      newSocket.on("playerJoined", (player: PlayerData) => {
@@ -164,6 +167,9 @@ const RaceRoom = () => {
     };
   }, [roomId, localUserId, navigate]);
 
+  // =========================================
+  // Countdown Timer Effect
+  // =========================================
   useEffect(() => {
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
@@ -203,6 +209,9 @@ const RaceRoom = () => {
     };
   }, [roomState?.status, roomState?.countdownStartedAt]);
 
+  // =========================================
+  // Race Start Time Effect
+  // =========================================
   useEffect(() => {
     if (roomState?.status === 'racing' && roomState.startTime && !startTime) {
         console.log(`[RaceRoom] Race started on server at ${roomState.startTime}. Setting local startTime.`);
@@ -217,6 +226,9 @@ const RaceRoom = () => {
     }
   }, [roomState?.status, roomState?.startTime, startTime]);
 
+  // =========================================
+  // Keyboard Input Handler Effect
+  // =========================================
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (!socket || !roomState || isFinished) return;
@@ -225,10 +237,7 @@ const RaceRoom = () => {
 
       if (!startTime && roomState.status === 'racing') {
          if (!roomState.startTime) {
-             console.log("[RaceRoom] First keypress during race, setting local startTime.");
              setStartTime(Date.now());
-         } else if (!startTime) {
-             console.log("[RaceRoom] First keypress, but using server startTime.");
          }
       }
 
@@ -248,12 +257,12 @@ const RaceRoom = () => {
         let currentIncorrect = charStats.incorrect;
         let currentExtra = charStats.extra;
 
-          if (currentIndex >= text.length) {
-            currentExtra++;
+        if (currentIndex >= text.length) {
+          currentExtra++;
         } else if (newInput[currentIndex] === text[currentIndex]) {
-            currentCorrect++;
-          } else {
-            currentIncorrect++;
+          currentCorrect++;
+        } else {
+          currentIncorrect++;
         }
 
         const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
@@ -270,26 +279,37 @@ const RaceRoom = () => {
         setWpm(currentWpm);
         setWpmHistory((prev) => [...prev, { wpm: currentWpm, time: Date.now() - (startTime || Date.now()) }]);
 
+        // Update local progress in roomState as well
+        const progress = (newInput.length / text.length) * 100;
+        socket.emit("updateProgress", {
+          wpm: currentWpm,
+          accuracy: currentAccuracy,
+          progress: progress,
+        });
+
+        // Update local player's progress in roomState
+        setRoomState(prev => {
+          if (!prev || !localUserId) return prev;
+          return {
+            ...prev,
+            players: {
+              ...prev.players,
+              [localUserId]: {
+                ...prev.players[localUserId],
+                progress: progress,
+                wpm: currentWpm
+              }
+            }
+          };
+        });
+
         if (newInput.length === text.length) {
-          console.log("[RaceRoom] Text length reached locally.");
           setIsFinished(true);
           socket.emit("playerFinished", {
             finalWpm: currentWpm,
             finalAccuracy: currentAccuracy
           });
-        } else {
-            if (updateTimeout.current) clearTimeout(updateTimeout.current);
-            updateTimeout.current = setTimeout(() => {
-                const progress = (newInput.length / text.length) * 100;
-                socket.emit("updateProgress", {
-                    wpm: currentWpm,
-                    accuracy: currentAccuracy,
-                    progress: progress,
-                });
-                updateTimeout.current = null;
-            }, THROTTLE_INTERVAL);
         }
-
       } else if (e.key === "Backspace") {
         e.preventDefault();
         if (userInput.length === 0) return;
@@ -299,40 +319,49 @@ const RaceRoom = () => {
         let currentIncorrect = charStats.incorrect;
         let currentExtra = charStats.extra;
 
-          if (deletedIndex >= text.length) {
-            currentExtra = Math.max(0, currentExtra - 1);
+        if (deletedIndex >= text.length) {
+          currentExtra = Math.max(0, currentExtra - 1);
         } else if (userInput[deletedIndex] === text[deletedIndex]) {
-            currentCorrect = Math.max(0, currentCorrect - 1);
-          } else {
-            currentIncorrect = Math.max(0, currentIncorrect - 1);
-          }
+          currentCorrect = Math.max(0, currentCorrect - 1);
+        } else {
+          currentIncorrect = Math.max(0, currentIncorrect - 1);
+        }
 
         const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
         setCharStats(newCharStats);
 
-        setUserInput((prev) => prev.slice(0, -1));
+        setUserInput((prev) => {
+          const newInput = prev.slice(0, -1);
+          const progress = (newInput.length / text.length) * 100;
+          socket.emit("updateProgress", {
+            wpm,
+            accuracy,
+            progress: Math.max(0, progress),
+          });
 
-         if (updateTimeout.current) clearTimeout(updateTimeout.current);
-         updateTimeout.current = setTimeout(() => {
-             const progress = ((userInput.length -1) / text.length) * 100;
-             socket.emit("updateProgress", {
-                 wpm: wpm,
-                 accuracy: accuracy,
-                 progress: Math.max(0, progress),
-             });
-             updateTimeout.current = null;
-         }, THROTTLE_INTERVAL);
+          // Update local player's progress in roomState
+          setRoomState(prevState => {
+            if (!prevState || !localUserId) return prevState;
+            return {
+              ...prevState,
+              players: {
+                ...prevState.players,
+                [localUserId]: {
+                  ...prevState.players[localUserId],
+                  progress: Math.max(0, progress),
+                  wpm
+                }
+              }
+            };
+          });
+
+          return newInput;
+        });
       }
     };
 
     window.addEventListener("keydown", handleKeyPress);
-    return () => {
-        window.removeEventListener("keydown", handleKeyPress);
-        if (updateTimeout.current) {
-            clearTimeout(updateTimeout.current);
-            updateTimeout.current = null;
-        }
-    };
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, [
     socket,
     roomState,
@@ -345,18 +374,20 @@ const RaceRoom = () => {
     accuracy,
   ]);
 
+  // =========================================
+  // Alt+Delete Handler Effect
+  // =========================================
   useEffect(() => {
     const handleAltDelete = (e: KeyboardEvent) => {
-       if (!socket || !roomState || isFinished || roomState.status !== "racing" || userInput.length === 0) return;
+      if (!socket || !roomState || isFinished || roomState.status !== "racing" || userInput.length === 0) return;
 
       if ((e.key === "Backspace" || e.key === "Delete") && e.altKey) {
-        console.log("Alt+Backspace triggered");
         e.preventDefault();
         e.stopPropagation();
 
         let lastSpaceIndex = userInput.lastIndexOf(" ");
         if (lastSpaceIndex === userInput.length - 1) {
-             lastSpaceIndex = userInput.lastIndexOf(" ", lastSpaceIndex - 1);
+          lastSpaceIndex = userInput.lastIndexOf(" ", lastSpaceIndex - 1);
         }
 
         const startIndexToDelete = lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1;
@@ -368,30 +399,43 @@ const RaceRoom = () => {
         let currentExtra = charStats.extra;
 
         for (let i = 0; i < charsToDeleteCount; i++) {
-            const charIndex = startIndexToDelete + i;
-             if (charIndex >= text.length) {
-                currentExtra = Math.max(0, currentExtra - 1);
-            } else if (userInput[charIndex] === text[charIndex]) {
-                currentCorrect = Math.max(0, currentCorrect - 1);
-            } else {
-                currentIncorrect = Math.max(0, currentIncorrect - 1);
-            }
+          const charIndex = startIndexToDelete + i;
+          if (charIndex >= text.length) {
+            currentExtra = Math.max(0, currentExtra - 1);
+          } else if (userInput[charIndex] === text[charIndex]) {
+            currentCorrect = Math.max(0, currentCorrect - 1);
+          } else {
+            currentIncorrect = Math.max(0, currentIncorrect - 1);
+          }
         }
 
         const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
         setCharStats(newCharStats);
         setUserInput(newUserInput);
 
-         if (updateTimeout.current) clearTimeout(updateTimeout.current);
-         updateTimeout.current = setTimeout(() => {
-             const progress = (newUserInput.length / text.length) * 100;
-             socket.emit("updateProgress", {
-                 wpm: wpm,
-                 accuracy: accuracy,
-                 progress: Math.max(0, progress),
-             });
-             updateTimeout.current = null;
-         }, THROTTLE_INTERVAL);
+        const progress = (newUserInput.length / text.length) * 100;
+        
+        socket.emit("updateProgress", {
+          wpm,
+          accuracy,
+          progress: Math.max(0, progress),
+        });
+
+        // Update local player's progress in roomState
+        setRoomState(prevState => {
+          if (!prevState || !localUserId) return prevState;
+          return {
+            ...prevState,
+            players: {
+              ...prevState.players,
+              [localUserId]: {
+                ...prevState.players[localUserId],
+                progress: Math.max(0, progress),
+                wpm
+              }
+            }
+          };
+        });
       }
     };
 
@@ -399,6 +443,9 @@ const RaceRoom = () => {
     return () => window.removeEventListener("keydown", handleAltDelete, true);
   }, [socket, roomState, isFinished, userInput, text, charStats, wpm, accuracy]);
 
+  // =========================================
+  // Cursor Position Update Effect
+  // =========================================
   useEffect(() => {
     if (textContainerRef.current) {
         const chars = Array.from(
@@ -445,11 +492,14 @@ const RaceRoom = () => {
     }
   }, [userInput, text]);
 
+  // =========================================
+  // Opponent Cursors Update Effect
+  // =========================================
   useEffect(() => {
     if (!roomState || !text || !localUserId) {
-        setOpponentCursors({});
+      setOpponentCursors({});
       return;
-    };
+    }
 
     const newOpponentCursors: {
       [playerId: string]: { position: number; color: string };
@@ -463,31 +513,30 @@ const RaceRoom = () => {
         ((player.progress || 0) / 100) * text.length
       );
 
-       let domPosition = 0;
-       let charCount = 0;
-       const words = text.split(/(\s+)/);
+      let domPosition = 0;
+      let charCount = 0;
+      const words = text.split(/(\s+)/);
 
-       for (const part of words) {
-           if (part.length === 0) continue;
+      for (const part of words) {
+        if (part.length === 0) continue;
 
-            const isSpace = /^\s+$/.test(part);
-            const partLen = part.length;
+        const isSpace = /^\s+$/.test(part);
+        const partLen = part.length;
 
-           if (charCount + partLen > characterPosition) {
-               domPosition += characterPosition - charCount;
-                break;
-           }
+        if (charCount + partLen > characterPosition) {
+          domPosition += characterPosition - charCount;
+          break;
+        }
 
-           charCount += partLen;
-           domPosition += partLen;
+        charCount += partLen;
+        domPosition += partLen;
 
-           if (charCount === characterPosition) {
-               break;
-           }
-       }
-        const maxDomPosition = text.length;
-        domPosition = Math.min(domPosition, maxDomPosition);
-
+        if (charCount === characterPosition) {
+          break;
+        }
+      }
+      const maxDomPosition = text.length;
+      domPosition = Math.min(domPosition, maxDomPosition);
 
       const color = GHOST_CURSOR_COLORS[colorIndex % GHOST_CURSOR_COLORS.length];
       colorIndex++;
@@ -498,18 +547,19 @@ const RaceRoom = () => {
     setOpponentCursors(newOpponentCursors);
   }, [roomState, text, localUserId]);
 
+  // =========================================
+  // Game Actions
+  // =========================================
   const toggleReady = () => {
     if (socket && roomState?.status === "waiting") {
-      console.log("[RaceRoom] Emitting toggleReady");
       socket.emit("toggleReady");
     }
   };
 
   const submitVote = (topic: string) => {
-      if (socket && roomState?.status === "voting") {
-          console.log(`[RaceRoom] Emitting submitVote for topic: ${topic}`);
-          socket.emit("submitVote", { topic });
-      }
+    if (socket && roomState?.status === "voting") {
+      socket.emit("submitVote", { topic });
+    }
   };
 
   const resetLocalGameState = () => {
@@ -522,56 +572,12 @@ const RaceRoom = () => {
     setWpmHistory([]);
     setCharStats({ correct: 0, incorrect: 0, extra: 0, missed: 0 });
     setCursorPosition({ x: 0, y: 0 });
-    if (updateTimeout.current) clearTimeout(updateTimeout.current);
     setOpponentCursors({});
   };
 
-   const getCursorCoordinates = (domPosition: number): { x: number; y: number } | null => {
-    if (!textContainerRef.current) return null;
-
-    const chars = Array.from(
-      textContainerRef.current.querySelectorAll("span.char-wrapper > span")
-    ) as HTMLElement[];
-
-    if (chars.length === 0) return null;
-
-    const safePosition = Math.max(0, Math.min(domPosition, chars.length));
-
-    let targetChar: HTMLElement | null = null;
-    let x = 0;
-    let y = 0;
-
-    if (safePosition === chars.length) {
-        targetChar = chars[chars.length - 1];
-        if(targetChar){
-            const rect = targetChar.getBoundingClientRect();
-            const containerRect = textContainerRef.current.getBoundingClientRect();
-            x = rect.right - containerRect.left;
-            y = rect.top - containerRect.top;
-        }
-        } else {
-         targetChar = chars[safePosition];
-         if(targetChar){
-             const rect = targetChar.getBoundingClientRect();
-             const containerRect = textContainerRef.current.getBoundingClientRect();
-             x = rect.left - containerRect.left;
-             y = rect.top - containerRect.top;
-         }
-    }
-
-     if (!targetChar && chars.length > 0) {
-         const firstChar = chars[0];
-         const rect = firstChar.getBoundingClientRect();
-         const containerRect = textContainerRef.current.getBoundingClientRect();
-         x = rect.left - containerRect.left;
-         y = rect.top - containerRect.top;
-     } else if (!targetChar && chars.length === 0){
-          return { x: 0, y: 0 };
-     }
-
-    return { x, y };
-  };
-
+  // =========================================
+  // Loading and Error States
+  // =========================================
   if (!isConnected && !socketError) {
     return <div className="flex justify-center items-center min-h-screen">Connecting to room...</div>;
   }
@@ -591,8 +597,9 @@ const RaceRoom = () => {
     return <div className="flex justify-center items-center min-h-screen">Loading room data...</div>;
   }
 
-  const currentPlayerReady = localUserId ? roomState.players[localUserId]?.ready ?? false : false;
-
+  // =========================================
+  // Main Render
+  // =========================================
   return (
     <div className="flex flex-col items-center min-h-screen p-4 bg-[#2c2e31] text-[#d1d0c5]">
       <div className="fixed top-0 left-0 bg-black bg-opacity-70 p-2 text-xs text-white z-50">
@@ -693,7 +700,7 @@ const RaceRoom = () => {
 
             {Object.entries(opponentCursors).map(
               ([playerId, { position, color }]) => {
-                const coords = getCursorCoordinates(position);
+                const coords = getCursorCoordinates(textContainerRef, position);
                 if (!coords) return null;
 
                 const playerName =
@@ -727,7 +734,6 @@ const RaceRoom = () => {
 
             {text.split("").map((char, index) => {
                  let charColor = "text-[#646669]";
-                 let underline = "";
                     if (index < userInput.length) {
                      if(index < text.length) {
                         charColor = userInput[index] === text[index] ? "text-[#d1d0c5]" : "text-red-500";
