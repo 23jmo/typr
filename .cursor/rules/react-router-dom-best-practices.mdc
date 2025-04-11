@@ -1,0 +1,9 @@
+---
+description: Best practices for routing in React applications
+globs: **/*.tsx
+alwaysApply: false
+---
+- Use the latest v7 API for routing
+- Implement nested routes for better organization
+- Use route loaders for data fetching
+- Implement proper error boundaries for routes
