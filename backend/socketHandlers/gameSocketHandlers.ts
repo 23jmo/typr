@@ -83,13 +83,19 @@ export const handleUpdateProgress = (socket: Socket) => (data) => {
   const userId = (socket as any).userId;
   const roomId = (socket as any).roomId;
 
-  if (!userId || !roomId || !rooms[roomId] || !rooms[roomId].players[userId]) return;
+  if (!userId || !roomId || !rooms[roomId] || !rooms[roomId].players[userId]) {
+    console.warn(`[Socket] Invalid progress update: userId=${userId}, roomId=${roomId}`);
+    return;
+  }
 
   const room = rooms[roomId];
   const player = room.players[userId];
 
   // Only update during racing state
-  if (room.status !== 'racing') return;
+  if (room.status !== 'racing') {
+    console.warn(`[Socket] Progress update rejected - room ${roomId} not in racing state (${room.status})`);
+    return;
+  }
 
   // Basic validation
   if (typeof data.progress !== 'number' || typeof data.wpm !== 'number' || typeof data.accuracy !== 'number') {
@@ -101,12 +107,13 @@ export const handleUpdateProgress = (socket: Socket) => (data) => {
   player.wpm = Math.max(0, data.wpm);
   player.accuracy = Math.max(0, Math.min(100, data.accuracy));
 
-  // Broadcast progress to others in the room (throttling might be needed)
+  console.log(`[Socket] Updated progress for ${player.name} in room ${roomId}: ${player.progress}%, WPM: ${player.wpm}`);
+
+  // Broadcast progress to others in the room
   socket.to(roomId).emit("opponentProgress", {
     userId,
     progress: player.progress,
     wpm: player.wpm,
-    // accuracy: player.accuracy // Maybe not needed for opponent view?
   });
 };
 
@@ -197,4 +204,4 @@ export const handleRequestPlayAgain = (socket: Socket) => () => {
     // --- INITIATE VOTING --- 
     roomManager.startTopicVotingWithDeps(roomId);
   }
-}; 
+};
