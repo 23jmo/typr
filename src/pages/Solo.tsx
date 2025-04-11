@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import StatsOverview from "../components/StatsOverview";
+import TypingPrompt from "../components/TypingPrompt";
 import { GameResult } from "../types";
 import { auth } from "../services/firebase";
 import { userStatsService } from "../services/firebase";
@@ -41,7 +42,6 @@ const Solo = () => {
   const [accuracy, setAccuracy] = useState(100);
   const [isFinished, setIsFinished] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
-  const textContainerRef = useRef<HTMLDivElement>(null);
   const [wpmHistory, setWpmHistory] = useState<
     Array<{ wpm: number; time: number }>
   >([]);
@@ -160,23 +160,6 @@ const Solo = () => {
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [text, userInput, startTime, isFinished]);
 
-  // Update cursor position when input changes
-  useEffect(() => {
-    if (textContainerRef.current) {
-      const chars = Array.from(
-        textContainerRef.current.querySelectorAll("span > span")
-      );
-      const currentChar = chars[userInput.length] || chars[0];
-      if (currentChar) {
-        const rect = currentChar.getBoundingClientRect();
-        const containerRect = textContainerRef.current.getBoundingClientRect();
-        const x = rect.left - containerRect.left;
-        const y = rect.top - containerRect.top;
-        setCursorPosition({ x, y });
-      }
-    }
-  }, [userInput]);
-
   useEffect(() => {
     if (isFinished) {
       // Generate a unique gameId for solo games
@@ -217,76 +200,28 @@ const Solo = () => {
 
   return (
     <div className="inset-0 flex flex-col items-center p-4">
-      <div className="w-full max-w-[80%] mt-[30vh]">
+      <div className="w-full max-w-[80%]">
         {text ? (
           isFinished ? (
-            <StatsOverview
-              wpm={wpm}
-              accuracy={accuracy}
-              startTime={startTime}
-              wpmHistory={wpmHistory}
-              charStats={charStats}
-            />
-          ) : (
-            <div
-              ref={textContainerRef}
-              className="text-4xl leading-relaxed font-mono relative flex flex-wrap select-none"
-            >
-              {!isFinished && (
-                <span
-                  className="absolute w-0.5 h-[1.1em] bg-[#d1d0c5] top-[0.1em] animate-pulse transition-all duration-75 left-0"
-                  style={{
-                    transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px)`,
-                  }}
-                />
-              )}
-
-              {text.split(" ").map((word, wordIndex, wordArray) => {
-                const previousWordsLength = wordArray
-                  .slice(0, wordIndex)
-                  .reduce((acc, word) => acc + word.length + 1, 0);
-
-                return (
-                  <span
-                    key={wordIndex}
-                    className="flex"
-                  >
-                    {word.split("").map((char, charIndex) => {
-                      const index = previousWordsLength + charIndex;
-
-                      let color = "text-[#646669]";
-                      if (index < userInput.length) {
-                        color =
-                          userInput[index] === char
-                            ? "text-[#d1d0c5]"
-                            : "text-red-500";
-                      }
-                      return (
-                        <span
-                          key={charIndex}
-                          className={`${color} ${
-                            index === userInput.length ? "relative" : ""
-                          }`}
-                        >
-                          {char}
-                        </span>
-                      );
-                    })}
-                    {wordIndex < wordArray.length - 1 && (
-                      <span
-                        className={`${
-                          previousWordsLength + word.length < userInput.length
-                            ? "text-[#d1d0c5]"
-                            : "text-[#646669]"
-                        } relative`}
-                      >
-                        &nbsp;
-                      </span>
-                    )}
-                  </span>
-                );
-              })}
+            <div className="mt-[30vh]">
+              <StatsOverview
+                wpm={wpm}
+                accuracy={accuracy}
+                startTime={startTime}
+                wpmHistory={wpmHistory}
+                charStats={charStats}
+              />
             </div>
+          ) : (
+            <TypingPrompt
+              text={text}
+              userInput={userInput}
+              isFinished={isFinished}
+              cursorPosition={cursorPosition}
+              setCursorPosition={setCursorPosition}
+              opponentCursors={{}}
+              roomState={{}}
+            />
           )
         ) : (
           <TypeText onTextGenerated={setText} />
