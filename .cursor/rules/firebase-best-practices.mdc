@@ -1,0 +1,9 @@
+---
+description: 
+globs: **/*.tsx,**/*.ts,**/*.js
+alwaysApply: false
+---
+- Use Firebase Modular SDK for tree-shaking
+- Implement proper security rules for Firestore and Realtime Database
+- Use Firebase Emulator for local development
+- Implement proper error handling for Firebase operations

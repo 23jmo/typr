@@ -1,0 +1,9 @@
+---
+description: 
+globs: **/*.tsx,**/*.ts,**/*.js,**/*.css
+alwaysApply: false
+---
+- Use utility-first approach for styling
+- Create custom components with @apply
+- Use responsive design utilities
+- Optimize build time with JIT mode
