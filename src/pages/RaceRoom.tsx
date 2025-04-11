@@ -748,9 +748,10 @@ const RaceRoom = () => {
                  const displayChar = isSpace ? '\u00A0' : char;
 
                     return (
-                    <span key={index} className="char-wrapper inline-block">
+                    <span key={index} className="char-wrapper inline-flex items-center justify-center" style={{ width: '0.6em', height: '1.2em' }}>
                       <span
-                       className={`${charColor} ${isSpace ? 'inline-block w-[0.5em]' : ''}`}
+                       className={`${charColor}`}
+                       style={{ lineHeight: '1.2em', verticalAlign: 'baseline' }}
                       >
                        {displayChar}
                       </span>
