@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useLocation, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import FinishedScreen from "../components/ranked/FinishedScreen";
 import { Player as PlayerData, GameData as RoomData } from "../types";
@@ -8,7 +8,7 @@ import CountdownAnimation from "../components/CountdownAnimation";
 import TopicVotingScreen from "../components/TopicVotingScreen";
 import RaceLobby from "../components/RaceLobby";
 import { GHOST_CURSOR_COLORS, BACKEND_URL, SAMPLE_TEXT } from "../constants/race";
-import { getCursorCoordinates, resetLocalGameState } from "../utils/race";
+import { getCursorCoordinates } from "../utils/race";
 
 const RaceRoom = () => {
   // Route and User Context
@@ -520,7 +520,6 @@ const RaceRoom = () => {
       for (const part of words) {
         if (part.length === 0) continue;
 
-        const isSpace = /^\s+$/.test(part);
         const partLen = part.length;
 
         if (charCount + partLen > characterPosition) {
@@ -556,11 +555,6 @@ const RaceRoom = () => {
     }
   };
 
-  const submitVote = (topic: string) => {
-    if (socket && roomState?.status === "voting") {
-      socket.emit("submitVote", { topic });
-    }
-  };
 
   const resetLocalGameState = () => {
     console.log("[RaceRoom] Resetting local game state.");
