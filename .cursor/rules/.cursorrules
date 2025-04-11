@@ -13,109 +13,116 @@ Ranked Mode
   Solo
 - Simply practice typing alone
 
+# TECH STACK
+
+Frontend:
+- Vite.js v6.1.0 with React v19
+- TypeScript v5.7.2
+- Tailwind CSS v4.0.6
+- Socket.io-client v4.8.1 for real-time communication
+- Firebase v11.3.0 for authentication and data storage
+- React Router DOM v7.1.5 for routing
+- Framer Motion v12.4.10 for animations
+
+Backend:
+- Node.js with Express v4.21.2
+- Socket.io v4.8.1 for real-time game sessions
+- Redis/IoRedis v5.6.0 for session management and caching
+- TypeScript with ts-node for development
+- Zod v3.23.8 for runtime type validation
+
+# PROJECT STRUCTURE
+
+Frontend (src/):
+- components/: Reusable UI components including game modes
+- pages/: Main route components
+- contexts/: React context providers
+- services/: Firebase and other service integrations
+- types/: TypeScript type definitions
+- utilities/: Helper functions
+
+Backend:
+- server.ts: Main server entry point
+- Socket handlers for real-time game management
+- Redis integration for scalable room management
+- Environment configuration with dotenv
+
+# DEVELOPMENT WORKFLOW
+
+1. Frontend Development:
+   ```bash
+   npm run dev  # Starts Vite dev server
+   ```
+2. Backend Development:
+   ```bash
+   cd backend
+   npm run dev  # Starts nodemon with ts-node
+   ```
+
+# CODE STANDARDS
+
+- TypeScript for type safety
+- ESLint v9.19.0 for code quality
+- Keep components under 200 lines
+- Use functional components with hooks
+- Implement proper error handling
+- Use async/await for asynchronous operations
+
+# ERROR HANDLING
+
+1. Check console logs and error messages
+2. Verify WebSocket connections
+3. Validate Redis connection and operations
+4. Check Firebase authentication status
+5. Verify environment variables
+
+# DEPLOYMENT
+
+- Frontend: Firebase Hosting
+- Backend: Cloud deployment with proper environment setup
+- Database: Cloud Firestore
+- Cache: Redis Cloud
+
+# TESTING
+
+- Manual testing of game mechanics
+- WebSocket connection testing
+- Redis operations verification
+- Authentication flow testing
+
+# COMMENTS AND DOCUMENTATION
+
+- Use JSDoc for function documentation
+- Comment complex game logic
+- Document WebSocket events
+- Explain Redis operations
+- Keep documentation up to date with changes
+
+# SECURITY
+
+- Implement proper Firebase security rules
+- Validate all user inputs
+- Secure WebSocket connections
+- Protect API endpoints
+- Handle rate limiting
+
+# PERFORMANCE
+
+- Optimize React renders
+- Minimize WebSocket payload size
+- Implement proper Redis caching
+- Lazy load components when possible
+- Monitor real-time game performance
+
 # PERSONALITY
 
 Proceed as if you are a 10X engineer. Make sure you explain your thinking and work like a senior engineer would.
-
-# ERROR DEBUGGING
-
-1. Explain the error in simple terms
-2. Use sequential thinking to solve the problem
 
 # OUR .ENV VARIABLES
 
 backend/.env
 frontend/.env
 
-# PROJECT STRUCTURE
-
-tree -L 4 -a -I 'node_modules|.git|**pycache**|.DS_Store|.pytest_cache|.vscode'
-.
-├── .cursor
-│ └── rules
-│ ├── .cursorrules
-│ └── sequential-thinking.mdc
-├── .firebaserc
-├── .gitignore
-├── README.md
-├── TODO
-├── backend
-│ ├── .env
-│ ├── package-lock.json
-│ ├── package.json
-│ └── server.ts
-├── eslint.config.js
-├── firebase.json
-├── firestore.rules
-├── functions
-│ ├── .eslintrc.js
-│ ├── .gitignore
-│ ├── index.js
-│ ├── lib
-│ │ ├── index.js
-│ │ └── index.js.map
-│ ├── package-lock.json
-│ ├── package.json
-│ ├── src
-│ │ └── index.ts
-│ ├── tsconfig.dev.json
-│ └── tsconfig.json
-├── index.html
-├── package-lock.json
-├── package.json
-├── public
-│ └── vite.svg
-├── src
-│ ├── App.tsx
-│ ├── assets
-│ │ ├── index.ts
-│ │ └── react.svg
-│ ├── components
-│ │ ├── GameModeButton.tsx
-│ │ ├── Header.tsx
-│ │ ├── OverallStats.tsx
-│ │ ├── RankedStats.tsx
-│ │ ├── StatsOverview.tsx
-│ │ ├── UsernamePrompt.tsx
-│ │ ├── WpmGraph.tsx
-│ │ └── ranked
-│ │ ├── FinishedScreen.css
-│ │ ├── FinishedScreen.tsx
-│ │ ├── MatchmakingScreen.tsx
-│ │ └── RankedHomePage.tsx
-│ ├── contexts
-│ │ └── UserContext.tsx
-│ ├── index.css
-│ ├── main.tsx
-│ ├── pages
-│ │ ├── CustomRoom.tsx
-│ │ ├── Home.tsx
-│ │ ├── RaceRoom.tsx
-│ │ ├── Ranked.tsx
-│ │ ├── SignIn.tsx
-│ │ ├── Solo.tsx
-│ │ └── Stats.tsx
-│ ├── services
-│ │ ├── firebase.ts
-│ │ └── migrate-user-stats.ts
-│ ├── types
-│ │ ├── index.ts
-│ │ └── ranks.ts
-│ ├── utilities
-│ │ └── random-text.ts
-│ └── vite-env.d.ts
-├── tailwind.config.js
-├── tsconfig.app.json
-├── tsconfig.json
-├── tsconfig.node.json
-└── vite.config.ts
-
-# TECH STACK
-
-- Vite.js + React + Typescript
-- Tailwind for styling
-- Node.js for backend
-- Cloude Firestore for database
 
 # Fundamental Principles
 
@@ -149,3 +156,104 @@ tree -L 4 -a -I 'node_modules|.git|**pycache**|.DS_Store|.pytest_cache|.vscode'
 - Include LOTS of explanatory comments in your code. ALWAYS write well-documented code.
 - Document all changes and their reasoning IN THE COMMENTS YOU WRITE
 - when writing comments, use clear and easy-to-understand language and write in short sentences.
+
+# PROJECT STRUCTURE
+
+.
+├── .cursor
+│   └── rules
+│       ├── .cursorrules
+│       ├── sequential-thinking.mdc
+│       └── typr-architecture.mdc
+├── .cursorrules
+├── .firebaserc
+├── .gitignore
+├── README.md
+├── TODO
+├── backend
+│   ├── .env
+│   ├── matchmaking.ts
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── roomManager.ts
+│   ├── routes.ts
+│   ├── server.ts
+│   ├── socketHandlers
+│   │   ├── gameSocketHandlers.ts
+│   │   ├── index.ts
+│   │   ├── matchmakingSocketHandlers.ts
+│   │   └── roomSocketHandlers.ts
+│   ├── socketHandlers.ts
+│   ├── topics.ts
+│   └── types.ts
+├── eslint.config.js
+├── firebase.json
+├── firestore.rules
+├── functions
+│   ├── .eslintrc.js
+│   ├── .gitignore
+│   ├── index.js
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── src
+│   │   └── index.ts
+│   ├── tsconfig.dev.json
+│   └── tsconfig.json
+├── index.html
+├── package-lock.json
+├── package.json
+├── public
+│   └── vite.svg
+├── src
+│   ├── App.tsx
+│   ├── assets
+│   │   ├── index.ts
+│   │   └── react.svg
+│   ├── components
+│   │   ├── CountdownAnimation.tsx
+│   │   ├── GameModeButton.tsx
+│   │   ├── GameModeCard.tsx
+│   │   ├── Header.tsx
+│   │   ├── OverallStats.tsx
+│   │   ├── RaceLobby.tsx
+│   │   ├── RankedStats.tsx
+│   │   ├── StatsOverview.tsx
+│   │   ├── TopicVotingScreen.tsx
+│   │   ├── UsernamePrompt.tsx
+│   │   ├── WpmGraph.tsx
+│   │   └── ranked
+│   │       ├── FinishedScreen.css
+│   │       ├── FinishedScreen.tsx
+│   │       ├── MatchmakingScreen.tsx
+│   │       ├── PerformanceGraph.tsx
+│   │       └── RankedHomePage.tsx
+│   ├── constants
+│   │   └── topicDescriptions.ts
+│   ├── contexts
+│   │   └── UserContext.tsx
+│   ├── index.css
+│   ├── main.tsx
+│   ├── pages
+│   │   ├── CustomRoom.tsx
+│   │   ├── Home.tsx
+│   │   ├── RaceRoom.tsx
+│   │   ├── Ranked.tsx
+│   │   ├── SignIn.tsx
+│   │   ├── Solo.tsx
+│   │   └── Stats.tsx
+│   ├── services
+│   │   ├── addCustomPrompts.ts
+│   │   ├── firebase.ts
+│   │   ├── migrate-user-stats.ts
+│   │   └── socket.ts
+│   ├── types
+│   │   ├── index.ts
+│   │   └── ranks.ts
+│   ├── utilities
+│   │   └── random-text.ts
+│   └── vite-env.d.ts
+├── tailwind.config.js
+├── tsconfig.app.json
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts

@@ -1,0 +1,9 @@
+---
+description: Best practices for React component development and state management
+globs: **/*.tsx
+alwaysApply: false
+---
+- Use functional components with hooks
+- Implement proper state management using Context API or external libraries
+- Optimize performance with memoization and useCallback
+- Use prop-types or TypeScript for type checking
