@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon --exec ts-node server.ts",
+    "dev:local": "PORT=5001 nodemon --exec ts-node server.ts",
     "build": "tsc",
     "start": "cd dist && node server.js",
     "postinstall": "npm run build"
