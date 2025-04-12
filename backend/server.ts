@@ -7,6 +7,7 @@ import apiRoutes, { initRoutes } from './routes'; // Import the API routes
 import { initMatchmaking } from './matchmaking'; // Import matchmaking module
 import { initRoomManager } from './roomManager'; // Import room manager module
 import { initSocketHandlers } from './socketHandlers/index'; // Import socket handlers module
+import { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
 
 require("dotenv").config();
 const express = require("express");
@@ -40,17 +41,27 @@ redisClient.on('error', (err) => console.error('[Redis] Client Error', err));
 // --- Socket.io Setup ---
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins for now, restrict in production
+    origin: "*", // In production, replace with your frontend URL
     methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true
   },
+  path: '/socket.io/',
+  transports: ['websocket', 'polling']
 });
 
-// CORS and body parsing first
-app.use(cors());
+// CORS configuration for Express
+app.use(cors({
+  origin: "*", // In production, replace with your frontend URL
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
+
 app.use(express.json());
 
 // Logging middleware
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`, {
     body: req.body,
     query: req.query,
@@ -60,7 +71,7 @@ app.use((req, res, next) => {
 });
 
 // Error logging middleware
-app.use((error, req, res, next) => {
+app.use(((error: Error, req: Request, res: Response, next: NextFunction) => {
   console.error("[Error]:", error);
   // Send JSON error response for API routes
   if (req.path.startsWith("/api/")) {
@@ -69,10 +80,15 @@ app.use((error, req, res, next) => {
     // Handle other errors if necessary, or just pass along
     next(error);
   }
-});
+}));
 
 // Initialize OpenAI
 initOpenAI(process.env.OPENAI_API_KEY!);
+
+// Health check endpoint
+app.get('/api/health', (req: Request, res: Response) => {
+  res.status(200).json({ status: 'healthy' });
+});
 
 // --- API Routes ---
 // Initialize the routes with the rooms reference

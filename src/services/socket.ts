@@ -1,15 +1,17 @@
 import { io, Socket } from "socket.io-client";
+import { BACKEND_URL } from "../constants/urls";
 
-// TODO: Replace with your actual backend server URL from environment variables
-// Ensure VITE_SOCKET_URL is set in your .env file
-const SERVER_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5001"; 
-
-export const socket: Socket = io(SERVER_URL, {
-  autoConnect: true, // Connect automatically
-  transports: ['websocket'], // Explicitly use websockets if needed
+export const socket: Socket = io(BACKEND_URL, {
+  path: '/socket.io/',
+  transports: ['websocket', 'polling'],
+  autoConnect: true,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  reconnectionAttempts: 5,
+  secure: true
 });
 
-// Optional: Connection listeners for debugging
+// Connection listeners for debugging
 socket.on("connect", () => {
   console.log("[Socket] Connected:", socket.id);
 });

@@ -1,3 +1,6 @@
+import { BACKEND_URL } from './urls';
+export { BACKEND_URL };
+
 export const GHOST_CURSOR_COLORS = [
   "bg-red-500",
   "bg-blue-500",
@@ -7,6 +10,5 @@ export const GHOST_CURSOR_COLORS = [
   "bg-teal-500",
 ];
 
-export const BACKEND_URL = "http://localhost:5001";
 export const SAMPLE_TEXT = "Connecting to server...";
 export const THROTTLE_INTERVAL = 500; 

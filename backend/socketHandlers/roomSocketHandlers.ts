@@ -1,6 +1,18 @@
 import { Server, Socket } from "socket.io";
 import { RoomData } from '../types';
 
+interface JoinRoomData {
+  roomId: string;
+  userData: {
+    uid: string;
+    username: string;
+  };
+}
+
+interface VoteData {
+  topic: string;
+}
+
 // Dependencies that will be injected
 let io: Server;
 let rooms: { [roomId: string]: RoomData } = {};
@@ -38,7 +50,7 @@ export const setupRoomSocketHandlers = (socket: Socket) => {
 };
 
 // Handler for joinRoom event
-export const handleJoinRoom = (socket: Socket) => ({ roomId, userData }) => {
+export const handleJoinRoom = (socket: Socket) => ({ roomId, userData }: JoinRoomData) => {
   console.log(`[Socket] User ${userData?.username} (${socket.id}) attempting to join room: ${roomId}`);
   const room = rooms[roomId];
   const userId = userData?.uid;
@@ -114,7 +126,7 @@ export const handleJoinRoom = (socket: Socket) => ({ roomId, userData }) => {
 };
 
 // Handler for submitVote event
-export const handleSubmitVote = (socket: Socket) => (data) => {
+export const handleSubmitVote = (socket: Socket) => (data: VoteData) => {
   const userId = (socket as any).userId;
   const roomId = (socket as any).roomId;
   const topic = data?.topic;
