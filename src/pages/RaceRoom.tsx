@@ -38,6 +38,7 @@ const RaceRoom = () => {
   const [countdown, setCountdown] = useState<number | null>(null);
 
   // Refs
+  const textContainerRef = useRef<HTMLDivElement>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const text = roomState?.text || SAMPLE_TEXT;
