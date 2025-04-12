@@ -38,6 +38,7 @@ const RaceRoom = () => {
   const [countdown, setCountdown] = useState<number | null>(null);
 
   // Refs
+  const textContainerRef = useRef<HTMLDivElement>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const text = roomState?.text || SAMPLE_TEXT;
@@ -62,7 +63,15 @@ const RaceRoom = () => {
     }
 
     console.log(`[RaceRoom] Connecting to socket server for room ${roomId}...`);
-    const newSocket = io(BACKEND_URL);
+    const newSocket = io(BACKEND_URL, {
+      path: '/socket.io/',
+      transports: ['websocket', 'polling'],
+      autoConnect: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+      secure: true
+    });
 
     newSocket.on("connect", () => {
       console.log(`[RaceRoom] Socket connected: ${newSocket.id}`);

@@ -1,6 +1,17 @@
 import { Server, Socket } from "socket.io";
 import { RoomData } from '../types';
 
+interface ProgressData {
+  progress: number;
+  wpm: number;
+  accuracy: number;
+}
+
+interface FinishData {
+  finalWpm?: number;
+  finalAccuracy?: number;
+}
+
 // Dependencies that will be injected
 let io: Server;
 let rooms: { [roomId: string]: RoomData } = {};
@@ -79,7 +90,7 @@ export const handleToggleReady = (socket: Socket) => () => {
 };
 
 // Handler for updateProgress event
-export const handleUpdateProgress = (socket: Socket) => (data) => {
+export const handleUpdateProgress = (socket: Socket) => (data: ProgressData) => {
   const userId = (socket as any).userId;
   const roomId = (socket as any).roomId;
 
@@ -118,7 +129,7 @@ export const handleUpdateProgress = (socket: Socket) => (data) => {
 };
 
 // Handler for playerFinished event
-export const handlePlayerFinished = (socket: Socket) => (data) => {
+export const handlePlayerFinished = (socket: Socket) => (data: FinishData) => {
   const userId = (socket as any).userId;
   const roomId = (socket as any).roomId;
   console.log(`[Socket] Received playerFinished from ${userId} in room ${roomId}`);
