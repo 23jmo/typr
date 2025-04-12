@@ -7,8 +7,8 @@ import React from "react";
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 
-// Define backend URL (replace with environment variable in production)
-const BACKEND_URL = "http://localhost:5001";
+// Use environment variable for backend URL
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5001";
 
 const CustomRoom = () => {
   const navigate = useNavigate();
