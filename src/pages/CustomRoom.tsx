@@ -128,7 +128,6 @@ const CustomRoom = () => {
 
   const joinGame = async (targetRoomId?: string) => {
     const username = tempUsername || userData?.username;
-    const userId = auth.currentUser?.uid; // We don't send userId here, RaceRoom will handle it
     const roomToJoin = targetRoomId || roomId;
 
     if (!username) { // Only need username check now, userId check happens in RaceRoom
@@ -180,7 +179,6 @@ const CustomRoom = () => {
     max, 
     label, 
     unit = "",
-    step = 1  // Keep for backward compatibility but won't use it
   }: { 
     value: number; 
     onChange: (value: number) => void; 
@@ -490,13 +488,12 @@ const CustomRoom = () => {
             />
             
             {/* Ranked Game Toggle */}
-            {/* <ToggleSwitch
+            <ToggleSwitch
               isChecked={isRanked}
               onChange={setIsRanked}
               label="Ranked Game"
               description="Results will affect player ELO ratings"
-            /> */}
-            {/* TODO: Re-enable ranked mode toggle once backend logic is implemented */}
+            />
             
             {/* Replace Text Type Dropdown with 3-box layout */}
             <div className="mb-6">
