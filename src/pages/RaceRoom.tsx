@@ -8,7 +8,6 @@ import CountdownAnimation from "../components/CountdownAnimation";
 import TopicVotingScreen from "../components/TopicVotingScreen";
 import RaceLobby from "../components/RaceLobby";
 import { GHOST_CURSOR_COLORS, BACKEND_URL, SAMPLE_TEXT } from "../constants/race";
-import { getCursorCoordinates } from "../utils/race";
 import TypingPrompt from "../components/TypingPrompt";
 
 const RaceRoom = () => {

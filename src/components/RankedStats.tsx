@@ -5,7 +5,6 @@ const RankedStats = () => {
   const { userData } = useUser();
 
   const getUserRank = () => {
-    const avgWpm = userData?.stats?.overall?.averageWPM || 0;
     return (
       Object.values(rankedIcons).find(
         (rank) =>

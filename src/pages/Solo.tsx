@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import StatsOverview from "../components/StatsOverview";
 import TypingPrompt from "../components/TypingPrompt";
-import { GameResult } from "../types";
 import { auth } from "../services/firebase";
 import { userStatsService } from "../services/firebase";
 import { generateTextByTopic } from "../utilities/random-text";
@@ -167,20 +166,6 @@ const Solo = () => {
         .toString(36)
         .substring(2, 9)}`;
 
-      const gameResult = {
-        wpm,
-        accuracy,
-        timestamp: new Date().toISOString(),
-        userId: auth.currentUser?.uid,
-        roomId: null,
-        timePlayed: Date.now() - (startTime || Date.now()),
-        wordsTyped: userInput.length,
-        charactersTyped: userInput.length,
-        totalMistakes: userInput.length - accuracy,
-        totalWordsTyped: userInput.length,
-        totalCharactersTyped: userInput.length,
-        totalTimePlayed: Date.now() - (startTime || Date.now()),
-      };
       if (auth.currentUser?.uid) {
         // Use the centralized service to update stats
         userStatsService.updateUserStats(auth.currentUser.uid, {
