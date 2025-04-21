@@ -97,7 +97,7 @@ const PerformanceGraph: React.FC<PerformanceGraphProps> = ({ matches }) => {
   ).join(' ');
   
   // Function to determine tooltip position to keep it within bounds
-  const getTooltipPosition = (pointX: number, pointY: number, index: number, tooltipWidth: number) => {
+  const getTooltipPosition = (pointX: number, pointY: number, tooltipWidth: number) => {
     // Default position is to the right of the point
     let x = pointX + 15;
     let y = pointY - 70;
@@ -248,7 +248,7 @@ const PerformanceGraph: React.FC<PerformanceGraphProps> = ({ matches }) => {
         {hoveredPoint !== null && (() => {
           const point = points[hoveredPoint];
           const tooltipWidth = calculateTooltipWidth(point);
-          const tooltipPos = getTooltipPosition(point.x, point.y, hoveredPoint, tooltipWidth);
+          const tooltipPos = getTooltipPosition(point.x, point.y, tooltipWidth);
           
           return (
             <g style={{ pointerEvents: 'none' }}>

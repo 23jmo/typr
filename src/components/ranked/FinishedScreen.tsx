@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import StatsOverview from "../StatsOverview";
-import { GameData, Player, GameResult, CharStats } from "../../types";
+import { GameData, Player, CharStats } from "../../types";
 import { useUser } from "../../contexts/UserContext";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FaTrophy,
   FaHome,
@@ -10,21 +10,12 @@ import {
   FaArrowUp,
   FaArrowDown,
   FaHistory,
-  FaFire,
-  FaVoteYea,
+
 } from "react-icons/fa";
 import { rankedIcons } from "../../types/ranks";
 import "./FinishedScreen.css";
 import { userStatsService } from "../../services/firebase";
-import {
-  getFirestore,
-  updateDoc,
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { TOPIC_DESCRIPTIONS } from "../../constants/topicDescriptions";
+
 import { Socket } from 'socket.io-client';
 
 interface RankedGameData extends GameData {
@@ -44,15 +35,6 @@ interface FinishedScreenProps {
   localUserId: string;
 }
 
-interface StatsUpdate {
-  gamesPlayed: number;
-  wpmChange: number;
-  bestWPM: number;
-  isNewBest: boolean;
-  winLoss: "win" | "loss";
-  winRate: number;
-}
-
 const FinishedScreen = ({
   gameData,
   wpm,
@@ -67,12 +49,10 @@ const FinishedScreen = ({
   const { userData, refreshUserData } = useUser();
   const userId = userData?.uid;
   const navigate = useNavigate();
-  const { roomId } = useParams<{ roomId: string }>();
   const isWinner = gameData.winner === userId;
 
   // Stats update tracking
   const [statsUpdated, setStatsUpdated] = useState(false);
-  const [statsUpdate, setStatsUpdate] = useState<StatsUpdate | null>(null);
 
   // Calculate real ELO change based on the game data
   const [eloChange, setEloChange] = useState<number>(0);
@@ -252,13 +232,6 @@ const FinishedScreen = ({
 
   const canPlayAgain = roomState.status === 'finished';
   const localPlayerWantsPlayAgain = (roomState.players[localUserId] as Player | undefined)?.wantsPlayAgain;
-
-  // Use Player type from import
-  const finishedConnectedPlayers = Object.values(roomState.players).filter(p => (p as Player).connected);
-
-  // Use Player type from import
-  const winnerName = roomState.winner ? (roomState.players[roomState.winner] as Player | undefined)?.name : "N/A";
-
   return (
     <div className="fixed inset-0 bg-[#1e1e1e] flex flex-col items-center justify-start p-4 pt-6 overflow-y-auto">
       <div className="bg-[#2a2a2a] rounded-xl shadow-xl p-4 md:p-6 max-w-3xl w-full mx-auto my-2 border border-[#3a3a3a]">
@@ -445,15 +418,15 @@ const FinishedScreen = ({
           {canPlayAgain && (
             <button
               onClick={handlePlayAgain}
-              disabled={localPlayerWantsPlayAgain}
+              disabled={localPlayerWantsPlayAgain || !hasEnoughPlayers}
               className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors w-full md:w-auto text-lg ${
-                localPlayerWantsPlayAgain
+                localPlayerWantsPlayAgain || !hasEnoughPlayers
                   ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                   : "bg-yellow-500 hover:bg-yellow-600 text-black"
               }`}
             >
               <FaHistory />
-              {localPlayerWantsPlayAgain ? "Waiting for others..." : "Pick Next Topic"}
+              {localPlayerWantsPlayAgain ? "Waiting for others..." : !hasEnoughPlayers ? "Not enough players" : "Pick Next Topic"}
             </button>
           )}
 

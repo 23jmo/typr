@@ -1,4 +1,3 @@
-import React from "react";
 import { rankedIcons } from "../../types/ranks";
 import { useUser } from "../../contexts/UserContext";
 
