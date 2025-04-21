@@ -198,8 +198,6 @@ export const userStatsService = {
       const newGamesPlayed = currentRankedStats.gamesPlayed + 1;
       const newWins =
         currentRankedStats.totalWins + (gameResult.isWinner ? 1 : 0);
-      const newLosses =
-        currentRankedStats.totalLosses + (gameResult.isWinner ? 0 : 1);
       const newWinRate = Math.round((newWins / newGamesPlayed) * 100);
 
       // Calculate new average WPM

@@ -24,7 +24,6 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
   gameData,
   roomId,
   userId,
-  username,
   onToggleReady,
 }) => {
   // Calculate player count

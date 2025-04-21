@@ -1,6 +1,5 @@
 import React, { useRef, useEffect } from 'react';
 import { getCursorCoordinates } from "../utils/race";
-import { GHOST_CURSOR_COLORS } from "../constants/race";
 
 const TEXT_SPLIT_PATTERN = /([^\s]+\s*)/g;
 

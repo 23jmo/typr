@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { GameData, Player } from "../types";
-import { useUser } from "../contexts/UserContext";
 import { Socket } from 'socket.io-client';
 import { FaVoteYea, FaClock, FaCheck, FaHourglassHalf } from "react-icons/fa";
 import { TOPIC_DESCRIPTIONS } from "../constants/topicDescriptions";

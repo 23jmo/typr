@@ -1041,21 +1041,7 @@ export const updateLeaderboardManually = functionsV1.https.onCall(async (data, c
       topUsers.push(userEntry);
     });
     
-    // If no users with ELO were found, create some sample data
-    if (topUsers.length === 0) {
-      logger.warn("No users with ELO found, creating sample data");
-      
-      // Create sample data with correct ranks based on ranks.ts
-      topUsers.push(
-        { uid: "sample1", username: "TypeMaster99", elo: 2050, rank: "Cherry MX", averageWPM: 145 },
-        { uid: "sample2", username: "SpeedDemon", elo: 1850, rank: "Diamond", averageWPM: 135 },
-        { uid: "sample3", username: "KeyboardWarrior", elo: 1600, rank: "Platinum", averageWPM: 130 },
-        { uid: "sample4", username: "SwiftKeys", elo: 1300, rank: "Gold", averageWPM: 120 },
-        { uid: "sample5", username: "FastFingers", elo: 900, rank: "Silver", averageWPM: 115 }
-      );
-      
-      logger.info("Created sample data with proper ranks");
-    }
+
     
     // Create the timestamp
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
