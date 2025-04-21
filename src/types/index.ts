@@ -34,7 +34,7 @@ interface UserStats {
 }
 
 // Define CharStats type
-export interface CharStats {
+interface CharStats {
   correct: number;
   incorrect: number;
   extra: number;
@@ -42,7 +42,7 @@ export interface CharStats {
 }
 
 // Define match data type
-export interface MatchData {
+interface MatchData {
   opponent: string;
   timeAgo: string;
   userWpm: number;
@@ -53,7 +53,7 @@ export interface MatchData {
 }
 
 // Define recent match data type for storing in user document
-export interface RecentMatch {
+interface RecentMatch {
   matchId: string;        // Reference to full match data if needed
   opponentId: string;     // User ID of opponent
   opponentName: string;   // Username of opponent
@@ -136,4 +136,4 @@ interface GameData { // Or rename to RoomData
   // selectedTopic?: string;
 }
 
-export type { UserData, GameResult, GameData, Player, RecentMatch, CharStats };
+export type { UserData, GameResult, GameData, Player, RecentMatch, CharStats, MatchData };

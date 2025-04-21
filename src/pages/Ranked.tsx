@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { rankedIcons } from "../types/ranks";
 import { useUser } from "../contexts/UserContext";
-import RankedHomePage from "../components/ranked/RankedHomePage";
 import MatchmakingScreen from "../components/ranked/MatchmakingScreen";
 import PerformanceGraph from "../components/ranked/PerformanceGraph";
 import { MatchData } from "../types";
@@ -22,9 +21,6 @@ interface TopRacer {
 }
 
 const Ranked = () => {
-  const [matchMaking, setMatchMaking] = useState(false);
-  const [matchFound, setMatchFound] = useState(false);
-  const [matchFinished, setMatchFinished] = useState(false);
   const { userData } = useUser();
   const [topRacers, setTopRacers] = useState<TopRacer[]>([
     { name: "TypeMaster99", rank: "CherryMX", wpm: 145 },
@@ -523,6 +519,9 @@ const Ranked = () => {
                     {updatingLeaderboard ? "Updating..." : "Update Now"}
                   </button>
                 </div>
+                {leaderboardLastUpdated && (
+                  <p className="text-sm text-[#646669] mb-4">Last updated: {leaderboardLastUpdated}</p>
+                )}
                 
                 {/* Racer List */}
                 <div className="space-y-6">
