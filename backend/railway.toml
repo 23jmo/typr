@@ -6,4 +6,15 @@ buildCommand = "npm install && npm run build"
 startCommand = "npm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 100
-restartPolicyType = "on_failure" 
+restartPolicyType = "on_failure"
+
+[[deploy.ingress]]
+type = "web"
+path = "/"
+
+[[deploy.ingress]]
+type = "tcp"
+path = "/socket.io"
+port = "3000"
+internal_port = "3000"
+force_https = true 
