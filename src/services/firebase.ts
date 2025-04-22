@@ -686,15 +686,15 @@ export const leaderboardService = {
   getGlobalLeaderboard: async () => {
     try {
       const leaderboardDoc = await getDoc(doc(db, "leaderboards", "global"));
-      
+
       if (leaderboardDoc.exists()) {
         return leaderboardDoc.data();
       } else {
         // Fallback to direct query if document doesn't exist
         const leaderboard = await matchmakingService.getLeaderboard(5);
-        return { 
+        return {
           updatedAt: new Date().toISOString(),
-          topUsers: leaderboard
+          topUsers: leaderboard,
         };
       }
     } catch (error) {
@@ -702,43 +702,51 @@ export const leaderboardService = {
       return { updatedAt: new Date().toISOString(), topUsers: [] };
     }
   },
-  
+
   // Manual update function for testing purposes - uses Cloud Function
   updateLeaderboardNow: async () => {
     try {
-      console.log("[Leaderboard] Manually updating leaderboard via Cloud Function");
-      
+      console.log(
+        "[Leaderboard] Manually updating leaderboard via Cloud Function"
+      );
+
       // Call the Cloud Function
-      const updateLeaderboardFn = httpsCallable(functions, 'updateLeaderboardManually');
+      const updateLeaderboardFn = httpsCallable(
+        functions,
+        "updateLeaderboardManually"
+      );
       const result = await updateLeaderboardFn();
-      
+
       console.log("[Leaderboard] Cloud Function result:", result.data);
-      
+
       // Wait a moment to ensure Firestore has updated
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Fetch the updated leaderboard with cache busting
       const leaderboardRef = doc(db, "leaderboards", "global");
       const leaderboardSnap = await getDoc(leaderboardRef);
-      
+
       if (!leaderboardSnap.exists()) {
         throw new Error("Leaderboard document not found after update");
       }
-      
+
       const leaderboardData = leaderboardSnap.data();
       console.log("[Leaderboard] Fresh data after update:", leaderboardData);
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         updatedAt: leaderboardData.updatedAt,
-        topUsers: leaderboardData.topUsers
+        topUsers: leaderboardData.topUsers,
       };
     } catch (error) {
-      console.error("[Leaderboard] Error manually updating leaderboard:", error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : "Unknown error" 
+      console.error(
+        "[Leaderboard] Error manually updating leaderboard:",
+        error
+      );
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
-  }
+  },
 };

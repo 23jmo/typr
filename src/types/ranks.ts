@@ -36,3 +36,6 @@ export const rankedIcons = {
     maxElo: Infinity,
   },
 };
+
+// Create type for the keys of the rankedIcons object
+export type RankKey = keyof typeof rankedIcons;

@@ -21,7 +21,7 @@ const RankedStats = () => {
   );
 
   return (
-    <div className="max-w-5xl mx-auto p-8">
+    <div className="mb-10">
       {/* Rank Display */}
       <div className="bg-[#2c2e31] rounded-lg p-8 mb-8">
         <div className="flex items-center gap-8">
