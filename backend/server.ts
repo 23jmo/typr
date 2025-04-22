@@ -38,22 +38,42 @@ redisClient.on("error", (err) => console.error("[Redis] Client Error", err));
   }
 })();
 
+// Define allowed origins
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://typr-production.up.railway.app",
+  process.env.FRONTEND_URL
+].filter((origin): origin is string => Boolean(origin));
+
 // --- Socket.io Setup ---
 const io = new Server(server, {
   cors: {
-    origin: "*", // In production, replace with your frontend URL
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   },
   path: "/socket.io/",
-  transports: ["websocket", "polling"],
+  transports: ["websocket", "polling"], // Allow polling as fallback
+  allowUpgrades: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  allowEIO3: true, // Allow Engine.IO 3 clients
+});
+
+// Add connection logging
+io.on("connection", (socket) => {
+  console.log(`[Socket.IO] Client connected: ${socket.id}`);
+  
+  socket.on("disconnect", (reason) => {
+    console.log(`[Socket.IO] Client disconnected: ${socket.id}, reason: ${reason}`);
+  });
 });
 
 // CORS configuration for Express
 app.use(
   cors({
-    origin: "*", // In production, replace with your frontend URL
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -116,6 +136,14 @@ const setupSocketHandlers = initSocketHandlers(
   matchmaking
 );
 setupSocketHandlers();
+
+// Add WebSocket upgrade logging
+server.on("upgrade", (request, socket, head) => {
+  console.log("[WebSocket] Upgrade request received", {
+    url: request.url,
+    headers: request.headers,
+  });
+});
 
 // --- Start the server ---
 const PORT = process.env.PORT || 5001;
