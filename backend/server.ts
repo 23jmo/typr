@@ -42,7 +42,9 @@ redisClient.on("error", (err) => console.error("[Redis] Client Error", err));
 const allowedOrigins = [
   "http://localhost:5173",
   "https://typr-production.up.railway.app",
-  process.env.FRONTEND_URL
+  "https://typr-frontend-production.up.railway.app",
+  process.env.FRONTEND_URL,
+  process.env.RAILWAY_STATIC_URL  // Add this for the frontend Railway URL
 ].filter((origin): origin is string => Boolean(origin));
 
 // --- Socket.io Setup ---
