@@ -57,31 +57,31 @@ const Header = () => {
           <nav className="hidden md:flex items-center gap-4">
             <button 
               onClick={() => navigate("/")} 
-              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow"
+              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Home
             </button>
             <button 
               onClick={() => navigate("/ranked")} 
-              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow"
+              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Ranked
             </button>
             <button 
               onClick={() => navigate("/custom")} 
-              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow"
+              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Custom
             </button>
             <button 
               onClick={() => navigate("/solo")} 
-              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow"
+              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Solo
             </button>
             <button 
               onClick={() => navigate("/stats")} 
-              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow"
+              className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Stats
             </button>
