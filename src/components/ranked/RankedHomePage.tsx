@@ -101,11 +101,15 @@ const RankedHomePage = ({ onMatchmakingStarted }: RankedHomePageProps) => {
         <div className="bg-[#2c2e31] rounded-lg p-6 text-center">
           <h3 className="text-[#646669] text-sm mb-2">Win Rate</h3>
           <p className="text-2xl text-[#e2b714]">
-            {((userData?.stats?.overall?.totalWins || 0) /
-              ((userData?.stats?.overall?.totalWins || 0) +
-                (userData?.stats?.overall?.totalLosses || 0)) +
-              (userData?.stats?.overall?.totalTies || 0)) *
-              100 || 0}
+            {(() => {
+              const wins = userData?.stats?.overall?.totalWins || 0;
+              const losses = userData?.stats?.overall?.totalLosses || 0;
+              const ties = userData?.stats?.overall?.totalTies || 0;
+              const total = wins + losses + ties;
+              
+              if (total === 0) return "0.00";
+              return ((wins / total) * 100).toFixed(2);
+            })()}
             %
           </p>
         </div>
