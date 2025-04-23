@@ -53,6 +53,9 @@ const FinishedScreen = ({
 
   // Stats update tracking
   const [statsUpdated, setStatsUpdated] = useState(false);
+  
+  // Check if this is a ranked game
+  const isRanked = "ranked" in gameData && (gameData as RankedGameData).ranked === true;
 
   // Calculate real ELO change based on the game data
   const [eloChange, setEloChange] = useState<number>(0);
@@ -137,7 +140,7 @@ const FinishedScreen = ({
         charactersTyped,
         totalMistakes,
         timePlayed,
-        isRanked: true,
+        isRanked,
         isWinner,
         gameId,
       });
@@ -157,15 +160,14 @@ const FinishedScreen = ({
     isWinner,
     statsUpdated,
     refreshUserData,
+    isRanked,
   ]);
 
   // Calculate ELO change
   useEffect(() => {
-    // Check if this is a ranked game
-    const isRanked =
-      "ranked" in gameData && (gameData as RankedGameData).ranked === true;
-
-    if (isRanked && userId && gameData.winner) {
+    if (!isRanked) return;
+    
+    if (userId && gameData.winner) {
       const rankedGameData = gameData as RankedGameData;
 
       // Get the initial ELO values
@@ -221,7 +223,7 @@ const FinishedScreen = ({
       setEloChange(fallbackChange);
       setNewElo(userElo + fallbackChange);
     }
-  }, [gameData, userId, isWinner, userData]);
+  }, [gameData, userId, isWinner, userData, isRanked]);
 
   const handlePlayAgain = () => {
     if (socket) {
@@ -301,7 +303,7 @@ const FinishedScreen = ({
         </div>
 
         {/* ELO Change and Rank Progress Section */}
-        {userId && (
+        {userId && isRanked && (
           <div className="bg-[#333333] p-4 md:p-6 rounded-lg mb-4 md:mb-6 border border-[#444444]">
             <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6 flex items-center gap-2 text-white border-b border-[#444444] pb-3">
               <span className="text-yellow-400">{currentRank.icon}</span> Rank
