@@ -356,46 +356,69 @@ const FinishedScreen = ({
               )}
             </div>
 
-            <div className="relative h-4 bg-[#222222] rounded-full overflow-hidden mb-1">
-              {/* Current rank marker */}
-              <div
-                className="absolute top-0 h-full w-0.5 bg-gray-400 z-10"
-                style={{ left: "0%" }}
-                title={`${currentRank.name} starts at ${currentRank.minElo} ELO`}
+            {/* Progress bar container - curved container */}
+            <div className="relative h-5 bg-[#1a1a1a] rounded-lg overflow-hidden mb-2">
+              {/* Rank boundary guides */}
+              <div className="absolute inset-0 flex justify-between px-1 items-center pointer-events-none">
+                <div className="h-3 w-0.5 bg-gray-700 opacity-50 rounded" />
+                {currentRank.maxElo !== Infinity && (
+                  <div className="h-3 w-0.5 bg-gray-700 opacity-50 rounded" />
+                )}
+              </div>
+              
+              {/* Determine progress bar appearance based on ELO change */}
+              {eloChange >= 0 ? (
+                // Gaining ELO (positive change)
+                <>
+                  {/* Base yellow progress (original ELO) - flat edges */}
+                  <div
+                    className="absolute h-full bg-yellow-500 transition-all duration-800 ease-out"
+                    style={{ width: `${oldProgress}%` }}
+                  />
+                  
+                  {/* Green gain section - flat edges */}
+                  {progressWidth > oldProgress && (
+                    <div
+                      className="absolute h-full bg-green-600 transition-all duration-800 ease-out"
+                      style={{ 
+                        width: `${progressWidth - oldProgress}%`, 
+                        left: `${oldProgress}%`,
+                      }}
+                    />
+                  )}
+                </>
+              ) : (
+                // Losing ELO (negative change)
+                <>
+                  {/* Red section for lost ELO - flat edges */}
+                  {oldProgress > progressWidth && (
+                    <div
+                      className="absolute h-full bg-red-600 transition-all duration-800 ease-out"
+                      style={{ 
+                        width: `${oldProgress - progressWidth}%`,
+                        left: `${progressWidth}%`,
+                      }}
+                    />
+                  )}
+                  
+                  {/* Yellow for remaining ELO - flat edges */}
+                  <div
+                    className="absolute h-full bg-yellow-500 transition-all duration-800 ease-out"
+                    style={{ 
+                      width: `${progressWidth}%`, 
+                    }}
+                  />
+                </>
+              )}
+              
+              {/* Current position marker */}
+              <div 
+                className="absolute h-full w-0.5 bg-white z-10 transition-all duration-800 ease-out"
+                style={{
+                  left: `${progressWidth}%`,
+                  boxShadow: '0 0 5px 1px rgba(255, 255, 255, 0.5)',
+                }}
               />
-
-              {/* Next rank marker */}
-              {currentRank.maxElo !== Infinity && (
-                <div
-                  className="absolute top-0 h-full w-0.5 bg-yellow-400 z-10"
-                  style={{ left: "100%" }}
-                  title={`${
-                    Object.values(rankedIcons).find(
-                      (r) => r.minElo > currentRank.maxElo
-                    )?.name
-                  } starts at ${currentRank.maxElo + 1} ELO`}
-                />
-              )}
-
-              {/* Original ELO progress */}
-              <div
-                className="absolute h-full bg-gradient-to-r from-yellow-600 to-yellow-400"
-                style={{ width: `${oldProgress}%`, left: 0 }}
-              ></div>
-
-              {/* Gained ELO progress (animated) */}
-              {eloChange > 0 && (
-                <div
-                  className="absolute h-full transition-all duration-1000 ease-out overflow-hidden"
-                  style={{
-                    width: `${progressWidth - oldProgress}%`,
-                    left: `${oldProgress}%`,
-                    transitionProperty: "width",
-                    background: `repeating-linear-gradient(45deg, rgba(255, 204, 0, 0.9), rgba(255, 204, 0, 0.9) 8px, rgba(255, 180, 0, 0.7) 8px, rgba(255, 180, 0, 0.7) 16px)`,
-                    animation: "moveStripes 2s linear infinite",
-                  }}
-                ></div>
-              )}
             </div>
 
             {/* ELO markers */}
