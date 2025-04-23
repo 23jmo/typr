@@ -28,7 +28,11 @@ const KeyboardSoundSettings: React.FC<KeyboardSoundSettingsProps> = ({ className
     
     // Play a test sound if enabled
     if (newEnabled) {
-      setTimeout(() => keyboardSoundService.playSound('keypress'), 100);
+      setTimeout(() => {
+        keyboardSoundService.playSound('keypress').catch(err => 
+          console.error('Error playing sound:', err)
+        );
+      }, 100);
     }
   };
 
@@ -40,7 +44,9 @@ const KeyboardSoundSettings: React.FC<KeyboardSoundSettingsProps> = ({ className
     
     // Play a test sound
     if (settings.enabled) {
-      keyboardSoundService.playSound('keypress');
+      keyboardSoundService.playSound('keypress').catch(err => 
+        console.error('Error playing sound:', err)
+      );
     }
   };
 
@@ -52,7 +58,11 @@ const KeyboardSoundSettings: React.FC<KeyboardSoundSettingsProps> = ({ className
     
     // Play a test sound
     if (settings.enabled && newTheme !== 'silent') {
-      setTimeout(() => keyboardSoundService.playSound('keypress'), 300);
+      setTimeout(() => {
+        keyboardSoundService.playSound('keypress').catch(err => 
+          console.error('Error playing sound:', err)
+        );
+      }, 300);
     }
   };
 
@@ -121,35 +131,35 @@ const KeyboardSoundSettings: React.FC<KeyboardSoundSettingsProps> = ({ className
           <p className="mb-2">Test Sounds:</p>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => keyboardSoundService.playSound('keypress')}
+              onClick={() => keyboardSoundService.playSound('keypress').catch(err => console.error('Error playing sound:', err))}
               className="px-3 py-1 bg-[#2c2e31] hover:bg-[#3c3e41] rounded"
               disabled={!settings.enabled || settings.theme === 'silent'}
             >
               Key Press
             </button>
             <button
-              onClick={() => keyboardSoundService.playSound('space')}
+              onClick={() => keyboardSoundService.playSound('space').catch(err => console.error('Error playing sound:', err))}
               className="px-3 py-1 bg-[#2c2e31] hover:bg-[#3c3e41] rounded"
               disabled={!settings.enabled || settings.theme === 'silent'}
             >
               Space
             </button>
             <button
-              onClick={() => keyboardSoundService.playSound('backspace')}
+              onClick={() => keyboardSoundService.playSound('backspace').catch(err => console.error('Error playing sound:', err))}
               className="px-3 py-1 bg-[#2c2e31] hover:bg-[#3c3e41] rounded"
               disabled={!settings.enabled || settings.theme === 'silent'}
             >
               Backspace
             </button>
             <button
-              onClick={() => keyboardSoundService.playSound('enter')}
+              onClick={() => keyboardSoundService.playSound('enter').catch(err => console.error('Error playing sound:', err))}
               className="px-3 py-1 bg-[#2c2e31] hover:bg-[#3c3e41] rounded"
               disabled={!settings.enabled || settings.theme === 'silent'}
             >
               Enter
             </button>
             <button
-              onClick={() => keyboardSoundService.playSound('error')}
+              onClick={() => keyboardSoundService.playSound('error').catch(err => console.error('Error playing sound:', err))}
               className="px-3 py-1 bg-[#2c2e31] hover:bg-[#3c3e41] rounded"
               disabled={!settings.enabled || settings.theme === 'silent'}
             >
