@@ -137,7 +137,7 @@ const Settings = () => {
                     skills against others or practice on your own.
                   </p>
                   <p className="text-[#a1a1a1]">
-                    This app was created with React, TypeScript, and Firebase.
+                    This app was created by Alex Qi and Johnathan Mo, students at Columbia University.
                   </p>
                 </div>
               </div>
