@@ -245,41 +245,6 @@ const CustomRoom = () => {
     );
   };
 
-  // Toggle switch component
-  const ToggleSwitch = ({ 
-    isChecked, 
-    onChange, 
-    label, 
-    description 
-  }: { 
-    isChecked: boolean; 
-    onChange: (checked: boolean) => void; 
-    label: string; 
-    description?: string;
-  }) => (
-    <div className="flex items-center justify-between mb-6">
-      <div>
-        <h3 className="text-[#d1d0c5] text-lg">{label}</h3>
-        {description && <p className="text-sm text-[#a1a1a1]">{description}</p>}
-      </div>
-      <label className="relative inline-flex items-center cursor-pointer">
-        <input
-          type="checkbox"
-          checked={isChecked}
-          onChange={(e) => onChange(e.target.checked)}
-          className="sr-only"
-        />
-        <div className="relative w-11 h-6 bg-[#323437] rounded-full transition-colors duration-300 ease-in-out flex items-center px-[2px]"
-             style={{ backgroundColor: isChecked ? '#e2b714' : '#323437' }}>
-          <div 
-            className="absolute w-5 h-5 bg-[#d1d0c5] rounded-full shadow-md transition-transform duration-300 ease-in-out"
-            style={{ transform: isChecked ? 'translateX(20px)' : 'translateX(0)' }}
-          />
-        </div>
-      </label>
-    </div>
-  );
-
   // SVG icons for the mode toggle
   const KeyboardIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -487,13 +452,25 @@ const CustomRoom = () => {
               unit=" seconds"
             />
             
-            {/* Ranked Game Toggle */}
-            <ToggleSwitch
-              isChecked={isRanked}
-              onChange={setIsRanked}
-              label="Ranked Game"
-              description="Results will affect player ELO ratings"
-            />
+            {/* Ranked Game Toggle - direct implementation */}
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-[#d1d0c5] text-lg">Ranked Game</h3>
+                <p className="text-sm text-[#a1a1a1]">Results will affect player ELO ratings</p>
+              </div>
+              <button
+                onClick={() => setIsRanked(!isRanked)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2b714] focus:ring-offset-2 focus:ring-offset-[#2c2e31] ${
+                  isRanked ? 'bg-[#e2b714]' : 'bg-[#323437]'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isRanked ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
             
             {/* Replace Text Type Dropdown with 3-box layout */}
             <div className="mb-6">
