@@ -74,7 +74,6 @@ class KeyboardSoundService {
   private audioPool: Map<string, HTMLAudioElement[]>;
   private loadedSounds: Set<string>;
   private initialized: boolean;
-  private poolSize: number;
   private audioContext: AudioContext | null;
   private soundBuffers: Map<string, AudioBuffer>;
   private soundPackConfigs: Map<string, SoundPackConfig>;
@@ -87,7 +86,6 @@ class KeyboardSoundService {
     this.audioPool = new Map();
     this.loadedSounds = new Set();
     this.initialized = false;
-    this.poolSize = 3; // Number of audio elements per sound type to handle rapid keypresses
     this.audioContext = null;
     this.soundBuffers = new Map();
     this.soundPackConfigs = new Map();
@@ -317,7 +315,7 @@ class KeyboardSoundService {
   /**
    * Play a sound from a multi-file sound pack
    */
-  private async playMultiFileSoundFromPack(packName: string, soundType: KeyboardSoundType, config: SoundPackConfig): Promise<void> {
+  private async playMultiFileSoundFromPack(_packName: string, soundType: KeyboardSoundType, config: SoundPackConfig): Promise<void> {
     if (!this.audioContext || !config.files || config.files.length === 0) return;
     
     try {

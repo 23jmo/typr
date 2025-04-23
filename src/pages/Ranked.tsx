@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { socket } from "../services/socket.ts";
 import { FaMedal, FaChartLine, FaPercentage } from "react-icons/fa"; // Icons for stats
 import { motion } from "framer-motion"; // For subtle animations
+import MatchmakingScreen from "../components/ranked/MatchmakingScreen"; // Import MatchmakingScreen
 
 // Define rank key type for type safety (copied from previous context if needed)
 type RankKey = keyof typeof rankedIcons;
@@ -16,6 +17,7 @@ const Ranked = () => {
   // Matchmaking State
   const [isSearching, setIsSearching] = useState(false);
   const [matchmakingError, setMatchmakingError] = useState<string | null>(null);
+  const [searchTime, setSearchTime] = useState(0);
 
   // Function to determine user's rank and progress (simplified, only need rank name and key)
   const getUserRank = () => {
@@ -69,17 +71,36 @@ const Ranked = () => {
       socket.connect(); // Try to connect if disconnected
       return;
     }
-    if (isSearching) return; // Prevent multiple clicks
-
+    
     console.log("Initiating findMatch...");
     setMatchmakingError(null);
-    setIsSearching(true); // Show loading state immediately
+    setIsSearching(true); // Show MatchmakingScreen
+    setSearchTime(0); // Reset search time
 
+    // Start tracking search time
+    const timeInterval = setInterval(() => {
+      setSearchTime(prev => prev + 1);
+    }, 1000);
+
+    // Emit socket event to find match
     socket.emit("findMatch", {
       userId: userData.uid,
       username: userData.username,
       elo: userData.stats?.overall?.elo || 0,
     });
+
+    // Clean up interval when component unmounts or search ends
+    return () => clearInterval(timeInterval);
+  };
+
+  // --- Cancel matchmaking ---
+  const handleCancelSearch = () => {
+    console.log("Cancelling search...");
+    if (socket && socket.connected) {
+      socket.emit("cancelMatchmaking", { userId: userData?.uid });
+    }
+    setIsSearching(false);
+    setSearchTime(0);
   };
 
   // --- Clear matchmaking error ---
@@ -94,6 +115,7 @@ const Ranked = () => {
     const handleMatchFound = (data: { roomId: string }) => {
       console.log(`[Socket] Match found! Room ID: ${data.roomId}`);
       setIsSearching(false); // Stop searching state
+      setSearchTime(0); // Reset search time
       navigate(`/race/${data.roomId}`); // Navigate to the game room
     };
 
@@ -112,6 +134,7 @@ const Ranked = () => {
     const handleError = (data: { message: string }) => {
       console.error("[Socket] Matchmaking Error:", data.message);
       setIsSearching(false); // Stop searching on error
+      setSearchTime(0); // Reset search time
       setMatchmakingError(
         data.message || "An unknown matchmaking error occurred."
       );
@@ -121,6 +144,7 @@ const Ranked = () => {
     const handleCancelled = () => {
       console.log("[Socket] Matchmaking cancelled.");
       setIsSearching(false);
+      setSearchTime(0); // Reset search time
       setMatchmakingError(null);
     };
 
@@ -151,10 +175,23 @@ const Ranked = () => {
     // Rerun if socket instance changes (though typically it shouldn't)
   }, [navigate, socket]);
 
+  // If searching is true, show the MatchmakingScreen instead of the regular UI
+  if (isSearching) {
+    return (
+      <div className="min-h-screen bg-[#323437] text-white">
+        <MatchmakingScreen 
+          searchTime={searchTime} 
+          onCancel={handleCancelSearch} 
+          error={matchmakingError} 
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-start bg-[#323437] text-white p-4 pt-16">
       {/* Header section with logo/icon - similar to Overwatch */}
-      <div className="mb-12 w-full flex items-center px-4 md:px-8">
+      <div className="mb-12 w-full max-w-4xl mx-auto flex items-center px-4 md:px-8 mt-12">
         <div className="text-yellow-500 mr-3">
           <FaMedal size={36} />
         </div>
@@ -163,9 +200,9 @@ const Ranked = () => {
         </h1>
       </div>
 
-      <div className="w-full px-4 md:px-8">
+      <div className="w-full max-w-4xl mx-auto px-4 md:px-8">
         {/* Match Stats Section */}
-        <div className="mb-32 flex justify-between items-center">
+        <div className="mb-16 flex justify-between items-center">
           <div className="flex items-center">
             <span className="text-xl uppercase tracking-wider text-[#d1d0c5] font-bold mr-3">
               ELO
@@ -256,70 +293,23 @@ const Ranked = () => {
         </div>
 
         {/* Action Button - centered at bottom like Overwatch */}
-        <div className="flex justify-center w-full">
+        <div className="flex justify-center w-full max-w-2xl mx-auto">
           <motion.button
             onClick={handleFindMatch}
-            disabled={isSearching}
-            className={`w-full py-4 text-2xl font-bold uppercase tracking-wider rounded-lg shadow-lg transition-all duration-300 ease-in-out focus:outline-none ${
-              isSearching
-                ? "bg-slate-600 cursor-not-allowed"
-                : "bg-gradient-to-r from-yellow-500 to-yellow-400 hover:from-yellow-400 hover:to-yellow-300 text-slate-900"
-            }`}
-            whileHover={{ scale: isSearching ? 1 : 1.05 }}
-            whileTap={{ scale: isSearching ? 1 : 0.95 }}
+            className="w-full max-w-sm py-4 text-2xl font-bold uppercase tracking-wider rounded-lg shadow-lg transition-all duration-300 ease-in-out focus:outline-none bg-gradient-to-r from-yellow-500 to-yellow-400 hover:from-yellow-400 hover:to-yellow-300 text-slate-900"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
-            {isSearching ? (
-              <div className="flex items-center w-full justify-center">
-                <svg
-                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-slate-800"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Searching...
-              </div>
-            ) : (
-              "Start"
-            )}
+            Start
           </motion.button>
         </div>
-
-        {/* Status Message - below button, shows when searching */}
-        {isSearching && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-6 text-center text-slate-300 text-sm"
-          >
-            <div className="mb-1 text-xl">
-              Looking for players around {userElo} ELO...
-            </div>
-            <div className="text-yellow-400 font-bold">
-              Average Wait Time: ~1 min
-            </div>
-          </motion.div>
-        )}
 
         {/* Error Message */}
         {matchmakingError && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mt-6 text-red-300 bg-red-900/30 px-4 py-3 rounded-md text-center flex justify-between items-center"
+            className="mt-6 text-red-300 bg-red-900/30 px-4 py-3 rounded-md text-center flex justify-between items-center max-w-2xl mx-auto"
           >
             <span>{matchmakingError}</span>
             <button
