@@ -4,6 +4,7 @@ import TypingPrompt from "../components/TypingPrompt";
 import { auth } from "../services/firebase";
 import { userStatsService } from "../services/firebase";
 import { generateTextByTopic } from "../utilities/random-text";
+import { keyboardSoundService } from "../services/audioService";
 
 
 //TODO: add a graph of wpm and accuracy over time
@@ -66,6 +67,11 @@ const Solo = () => {
     if (wpmInterval.current) clearInterval(wpmInterval.current);
   };
 
+  // Initialize keyboard sounds
+  useEffect(() => {
+    keyboardSoundService.initialize();
+  }, []);
+
   // Add keydown event listener for both typing and restart
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -91,6 +97,13 @@ const Solo = () => {
         const newInput = userInput + e.key;
         setUserInput(newInput);
 
+        // Play key sound based on the key pressed
+        if (e.key === " ") {
+          keyboardSoundService.playSound("space");
+        } else {
+          keyboardSoundService.playSound("keypress");
+        }
+
         // Check just the new character
         const currentIndex = newInput.length - 1;
 
@@ -104,7 +117,8 @@ const Solo = () => {
             // Correct character
             return { ...prev, correct: prev.correct + 1 };
           } else {
-            // Incorrect character
+            // Incorrect character - play error sound
+            keyboardSoundService.playSound("error");
             return { ...prev, incorrect: prev.incorrect + 1 };
           }
         });
@@ -136,6 +150,9 @@ const Solo = () => {
         }
       } else if (e.key === "Backspace") {
         e.preventDefault();
+        // Play backspace sound
+        keyboardSoundService.playSound("backspace");
+        
         const deletedIndex = userInput.length - 1;
 
         // Remove the last character's stats
@@ -152,6 +169,9 @@ const Solo = () => {
         });
 
         setUserInput((prev) => prev.slice(0, -1));
+      } else if (e.key === "Enter") {
+        // Play enter sound
+        keyboardSoundService.playSound("enter");
       }
     };
 

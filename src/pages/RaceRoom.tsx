@@ -9,6 +9,7 @@ import TopicVotingScreen from "../components/TopicVotingScreen";
 import RaceLobby from "../components/RaceLobby";
 import { GHOST_CURSOR_COLORS, BACKEND_URL, SAMPLE_TEXT } from "../constants/race";
 import TypingPrompt from "../components/TypingPrompt";
+import { keyboardSoundService } from "../services/audioService";
 
 const RaceRoom = () => {
   // Route and User Context
@@ -41,6 +42,13 @@ const RaceRoom = () => {
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const text = roomState?.text || SAMPLE_TEXT;
+
+  // =========================================
+  // Initialize keyboard sounds
+  // =========================================
+  useEffect(() => {
+    keyboardSoundService.initialize();
+  }, []);
 
   // =========================================
   // Socket Connection Effect
@@ -235,7 +243,7 @@ const RaceRoom = () => {
   }, [roomState?.status, roomState?.startTime, startTime]);
 
   // =========================================
-  // Keyboard Input Handler Effect
+  // Key Press Handler Effect
   // =========================================
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -260,6 +268,13 @@ const RaceRoom = () => {
         const newInput = userInput + e.key;
         setUserInput(newInput);
 
+        // Play key sound based on the key pressed
+        if (e.key === " ") {
+          keyboardSoundService.playSound("space");
+        } else {
+          keyboardSoundService.playSound("keypress");
+        }
+
         const currentIndex = newInput.length - 1;
         let currentCorrect = charStats.correct;
         let currentIncorrect = charStats.incorrect;
@@ -271,6 +286,8 @@ const RaceRoom = () => {
           currentCorrect++;
         } else {
           currentIncorrect++;
+          // Play error sound
+          keyboardSoundService.playSound("error");
         }
 
         const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
@@ -322,6 +339,9 @@ const RaceRoom = () => {
         e.preventDefault();
         if (userInput.length === 0) return;
 
+        // Play backspace sound
+        keyboardSoundService.playSound("backspace");
+
         const deletedIndex = userInput.length - 1;
         let currentCorrect = charStats.correct;
         let currentIncorrect = charStats.incorrect;
@@ -365,6 +385,9 @@ const RaceRoom = () => {
 
           return newInput;
         });
+      } else if (e.key === "Enter") {
+        // Play enter sound
+        keyboardSoundService.playSound("enter");
       }
     };
 
@@ -392,6 +415,9 @@ const RaceRoom = () => {
       if ((e.key === "Backspace" || e.key === "Delete") && e.altKey) {
         e.preventDefault();
         e.stopPropagation();
+
+        // Play backspace sound
+        keyboardSoundService.playSound("backspace");
 
         let lastSpaceIndex = userInput.lastIndexOf(" ");
         if (lastSpaceIndex === userInput.length - 1) {

@@ -1,5 +1,6 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { getCursorCoordinates } from "../utils/race";
+import { keyboardSoundService } from '../services/audioService';
 
 const TEXT_SPLIT_PATTERN = /([^\s]+\s*)/g;
 
@@ -23,6 +24,43 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   roomState,
 }) => {
   const textContainerRef = useRef<HTMLDivElement>(null);
+  const [prevInputLength, setPrevInputLength] = useState(0);
+
+  // Initialize keyboard sounds
+  useEffect(() => {
+    keyboardSoundService.initialize();
+  }, []);
+
+  // Track changes in user input to play sounds based on character correctness
+  useEffect(() => {
+    // Skip if the length hasn't changed (no new keypresses)
+    if (userInput.length === prevInputLength) {
+      setPrevInputLength(userInput.length);
+      return;
+    }
+
+    // Only check for input increases (typing new characters)
+    if (userInput.length > prevInputLength) {
+      const lastCharIndex = userInput.length - 1;
+      
+      // Check if character is correct or not to determine sound
+      // This is an additional sound layer on top of the main keypress sounds
+      if (lastCharIndex < text.length) {
+        const isCorrect = userInput[lastCharIndex] === text[lastCharIndex];
+        
+        if (!isCorrect) {
+          // Only play error sound from this component if enabled in settings
+          // The parent components already handle basic keypress sounds
+          const settings = keyboardSoundService.getSettings();
+          if (settings.enabled && settings.theme !== 'silent') {
+            keyboardSoundService.playSound('error');
+          }
+        }
+      }
+    }
+    
+    setPrevInputLength(userInput.length);
+  }, [userInput, text]);
 
   // Cursor Position Update Effect
   useEffect(() => {
