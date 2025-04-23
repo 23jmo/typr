@@ -79,11 +79,11 @@ const RankedStats = () => {
             <div>
               <p className="text-[#646669] text-sm">Win Rate</p>
               <p className="text-3xl text-[#e2b714]">
-                {((userData?.stats?.overall?.totalWins || 0) /
+                {(((userData?.stats?.overall?.totalWins || 0) /
                   ((userData?.stats?.overall?.totalWins || 0) +
                     (userData?.stats?.overall?.totalLosses || 0) +
                     (userData?.stats?.overall?.totalTies || 0))) *
-                  100}
+                  100).toFixed(2)}
                 %
               </p>
             </div>

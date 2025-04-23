@@ -16,7 +16,7 @@ const Stats: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#232427]">
+      <div className="min-h-screen bg-[#323437]">
         <Header />
         <div className="container mx-auto">
           <div className="flex justify-center items-center h-[calc(100vh-100px)]">
@@ -29,7 +29,7 @@ const Stats: React.FC = () => {
 
   if (!userData) {
     return (
-      <div className="min-h-screen bg-[#232427]">
+      <div className="min-h-screen bg-[#323437]">
         <Header />
         <div className="container mx-auto">
           <div className="flex justify-center items-center h-[calc(100vh-100px)]">
@@ -43,9 +43,9 @@ const Stats: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#232427]">
+    <div className="min-h-screen bg-[#323437]">
       <Header />
-      <div className="container mx-auto pt-20">
+      <div className="container mx-auto pt-20 pb-24">
         <OverallStats />
         {/* Overview Section */}
         <section>

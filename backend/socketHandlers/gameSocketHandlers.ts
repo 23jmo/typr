@@ -225,12 +225,12 @@ export const handlePlayerFinished =
       console.log(`[Game End] All players finished in room ${roomId}`);
       room.status = "finished";
 
-      // Determine winner
+      // Determine winner based on highest WPM
       let winnerId: string | undefined = undefined;
-      let earliestFinishTime = Number.MAX_SAFE_INTEGER;
+      let highestWpm = -1;
       activePlayers.forEach((p) => {
-        if (p.finishTime && p.finishTime < earliestFinishTime) {
-          earliestFinishTime = p.finishTime;
+        if (p.wpm && p.wpm > highestWpm) {
+          highestWpm = p.wpm;
           winnerId = p.id;
         }
       });
