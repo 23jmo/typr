@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { authService } from "../services/firebase";
 import { useUser } from "../contexts/UserContext";
 import { useState, useEffect } from "react";
-import { FaSignOutAlt } from "react-icons/fa";
+import { FaSignOutAlt, FaCog } from "react-icons/fa";
 
 const Header = () => {
   const navigate = useNavigate();
@@ -89,13 +89,23 @@ const Header = () => {
         </div>
 
         {/* User Controls - Right */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
+          {/* Settings Button */}
+          <button
+            onClick={() => navigate("/settings")}
+            className="px-3 py-1.5 text-sm text-[#d1d0c5] hover:text-white transition-all rounded-full hover:bg-white/10 hover:shadow-glow text-shadow flex items-center gap-1.5"
+            title="Settings"
+          >
+            <FaCog className="text-[#d1d0c5]" />
+            <span className="hidden md:inline">Settings</span>
+          </button>
+
           <button
             onClick={handleLogout}
             className="px-4 py-1.5 text-sm text-red-500 hover:text-red-400 transition-all rounded-full hover:bg-white/10 hover:shadow-glow text-shadow flex items-center gap-1.5"
           >
             <FaSignOutAlt className="text-red-500" />
-            Logout
+            <span className="hidden md:inline">Logout</span>
           </button>
 
           <div className="relative group">
@@ -121,6 +131,9 @@ const Header = () => {
               </div>
               <div className="px-4 py-2 text-sm text-[#d1d0c5] cursor-pointer hover:text-white hover:bg-white/10 transition-colors">
                 <button onClick={() => navigate("/stats")} className="w-full text-left">Stats</button>
+              </div>
+              <div className="px-4 py-2 text-sm text-[#d1d0c5] cursor-pointer hover:text-white hover:bg-white/10 transition-colors">
+                <button onClick={() => navigate("/settings")} className="w-full text-left">Settings</button>
               </div>
             </div>
           </div>

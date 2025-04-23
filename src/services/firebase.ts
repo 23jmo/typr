@@ -25,6 +25,7 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  deleteUser,
 } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -426,6 +427,37 @@ export const userService = {
   getUserByUid: async (uid: string): Promise<UserData | null> => {
     const userDoc = await getDoc(doc(db, "users", uid));
     return userDoc.exists() ? (userDoc.data() as UserData) : null;
+  },
+
+  deleteAccount: async (): Promise<void> => {
+    try {
+      if (!auth.currentUser) throw new Error("Not authenticated");
+      const userId = auth.currentUser.uid;
+      
+      console.log("[UserService] Starting account deletion process for:", userId);
+      
+      // First, delete all user data from Firestore
+      // 1. Delete user document
+      await deleteDoc(doc(db, "users", userId));
+      console.log("[UserService] Deleted user document");
+      
+      // 2. Remove from matchmaking queue if present
+      await deleteDoc(doc(db, "rankedQueue", userId));
+      
+      // 3. Delete Firebase Auth account
+      await deleteUser(auth.currentUser);
+      console.log("[UserService] Successfully deleted user account");
+      
+      // Sign out (though the account is already deleted)
+      await auth.signOut();
+    } catch (error: any) {
+      console.error("[UserService] Error deleting account:", error);
+      if (error.code === "auth/requires-recent-login") {
+        throw new Error("For security reasons, please log out and log back in before deleting your account.");
+      } else {
+        throw new Error(error.message || "Failed to delete account");
+      }
+    }
   },
 };
 
