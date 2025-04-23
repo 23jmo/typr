@@ -606,14 +606,8 @@ const RaceRoom = () => {
   // =========================================
   return (
     <div className="flex flex-col items-center min-h-screen p-4 bg-[#2c2e31] text-[#d1d0c5]">
-      <div className="fixed top-0 left-0 bg-black bg-opacity-70 p-2 text-xs text-white z-50">
-        User: {localUsername} ({localUserId?.substring(0,6)}), Room: {roomId}, Status:{" "}
-        {roomState?.status}, Socket: {isConnected ? 'Connected' : 'Disconnected'}
-        {socketError && <span className="text-red-400"> | Error: {socketError}</span>}
-      </div>
-
-       <div className="fixed top-10 left-4 space-y-2 z-40 bg-[#232527] p-3 rounded shadow-lg max-h-[80vh] overflow-y-auto">
-         <h3 className="font-bold mb-2 border-b border-[#3c3e41] pb-1">Players ({Object.keys(roomState.players).length}/{roomState.playerLimit})</h3>
+      <div className="fixed top-15 left-4 space-y-1 z-40 bg-[#232527] p-2 rounded shadow-lg max-h-[80vh] overflow-y-auto max-w-[180px]">
+        <h3 className="font-bold mb-1 text-sm border-b border-[#3c3e41] pb-1">Players ({Object.keys(roomState.players).length}/{roomState.playerLimit})</h3>
           {Object.values(roomState.players)
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((player) => (
