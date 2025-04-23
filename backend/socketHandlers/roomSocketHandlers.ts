@@ -232,12 +232,12 @@ export const handleDisconnect = (socket: Socket) => async (reason: string) => {
         console.log(`[Disconnect] All remaining players in racing room ${roomId} have finished. Setting status to finished.`);
         room.status = 'finished';
         
-        // Determine winner based on finish time
+        // Determine winner based on highest WPM
         let winnerId: string | undefined = undefined;
-        let earliestFinishTime = Infinity;
+        let highestWpm = -1;
         Object.values(room.players).forEach(p => {
-          if (p.finished && p.finishTime && p.finishTime < earliestFinishTime) {
-            earliestFinishTime = p.finishTime;
+          if (p.finished && p.wpm && p.wpm > highestWpm) {
+            highestWpm = p.wpm;
             winnerId = p.id;
           }
         });

@@ -10,6 +10,7 @@ import RaceLobby from "../components/RaceLobby";
 import { GHOST_CURSOR_COLORS, BACKEND_URL, SAMPLE_TEXT } from "../constants/race";
 import TypingPrompt from "../components/TypingPrompt";
 import { keyboardSoundService } from "../services/audioService";
+import { calculateWpm } from "../utilities/wpm";
 
 const RaceRoom = () => {
   // Route and User Context
@@ -297,12 +298,11 @@ const RaceRoom = () => {
         const currentAccuracy = Math.round((newCharStats.correct / totalChars) * 100) || 100;
         setAccuracy(currentAccuracy);
 
-        const timeElapsed = (Date.now() - (startTime || Date.now())) / 1000 / 60;
-        const safeTimeElapsed = Math.max(timeElapsed, 0.001);
-        const wordsTyped = newInput.length / 5;
-        const currentWpm = Math.round(wordsTyped / safeTimeElapsed) || 0;
+        const elapsed = Date.now() - (startTime || Date.now());
+        // Use the utility function to calculate WPM using only correct characters
+        const currentWpm = calculateWpm(newCharStats.correct, elapsed);
         setWpm(currentWpm);
-        setWpmHistory((prev) => [...prev, { wpm: currentWpm, time: Date.now() - (startTime || Date.now()) }]);
+        setWpmHistory((prev) => [...prev, { wpm: currentWpm, time: elapsed }]);
 
         // Update local progress in roomState as well
         const progress = (newInput.length / text.length) * 100;
