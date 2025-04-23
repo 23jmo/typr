@@ -5,6 +5,7 @@ import { auth } from "../services/firebase";
 import { userStatsService } from "../services/firebase";
 import { generateTextByTopic } from "../utilities/random-text";
 import { keyboardSoundService } from "../services/audioService";
+import { calculateWpm } from "../utilities/wpm";
 
 
 //TODO: add a graph of wpm and accuracy over time
@@ -128,11 +129,9 @@ const Solo = () => {
           charStats.correct + charStats.incorrect + charStats.extra;
         setAccuracy(Math.round((charStats.correct / totalChars) * 100) || 100);
 
-        // Calculate WPM and add to history
-        const timeElapsed =
-          (Date.now() - (startTime || Date.now())) / 1000 / 60;
-        const wordsTyped = newInput.length / 5;
-        const currentWpm = Math.round(wordsTyped / timeElapsed) || 0;
+        // Calculate WPM using the utility function
+        const elapsed = Date.now() - (startTime || Date.now());
+        const currentWpm = calculateWpm(charStats.correct, elapsed);
         setWpm(currentWpm);
 
         // Add WPM point on every keystroke
@@ -140,7 +139,7 @@ const Solo = () => {
           ...prev,
           {
             wpm: currentWpm,
-            time: (Date.now() - (startTime || Date.now())) / 1000,
+            time: elapsed / 1000, // Convert to seconds for the graph
           },
         ]);
 
