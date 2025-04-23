@@ -54,8 +54,17 @@ const FinishedScreen = ({
   // Stats update tracking
   const [statsUpdated, setStatsUpdated] = useState(false);
   
-  // Check if this is a ranked game
-  const isRanked = "ranked" in gameData && (gameData as RankedGameData).ranked === true;
+  // Check if this is a ranked game - handle both property naming conventions
+  const isRanked = ("ranked" in gameData && (gameData as RankedGameData).ranked === true) || gameData.isRanked === true;
+  
+  // Log game data properties for debugging
+  console.log("[FinishedScreen] Game data properties:", {
+    isRanked,
+    hasRankedProp: "ranked" in gameData,
+    rankedValue: "ranked" in gameData ? (gameData as any).ranked : undefined,
+    hasIsRankedProp: "isRanked" in gameData,
+    isRankedValue: "isRanked" in gameData ? gameData.isRanked : undefined
+  });
 
   // Calculate real ELO change based on the game data
   const [eloChange, setEloChange] = useState<number>(0);
