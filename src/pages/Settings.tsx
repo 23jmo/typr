@@ -26,45 +26,45 @@ const Settings = () => {
         <div className="flex flex-col md:flex-row gap-6">
           {/* Sidebar */}
           <div className="w-full md:w-64 shrink-0">
-            <div className="bg-[#232527] rounded-lg p-4">
-              <ul className="space-y-2">
+            <div className="bg-[#2c2e31] rounded-lg overflow-hidden">
+              <ul>
                 <li>
                   <button
-                    className={`flex items-center w-full p-2 rounded transition-colors ${
+                    className={`flex items-center w-full p-4 transition-all duration-200 ${
                       activeTab === 'keyboard'
-                        ? 'bg-[#e2b714] text-[#323437]'
-                        : 'hover:bg-[#3c3e41]'
+                        ? 'bg-[#232527] text-[#e2b714]'
+                        : 'text-[#646669] hover:text-[#a1a1a1]'
                     }`}
                     onClick={() => setActiveTab('keyboard')}
                   >
                     <FaKeyboard className="mr-3" />
-                    Keyboard Sounds
+                    <span className="font-medium">Keyboard Sounds</span>
                   </button>
                 </li>
                 <li>
                   <button
-                    className={`flex items-center w-full p-2 rounded transition-colors ${
+                    className={`flex items-center w-full p-4 transition-all duration-200 ${
                       activeTab === 'profile'
-                        ? 'bg-[#e2b714] text-[#323437]'
-                        : 'hover:bg-[#3c3e41]'
+                        ? 'bg-[#232527] text-[#e2b714]'
+                        : 'text-[#646669] hover:text-[#a1a1a1]'
                     }`}
                     onClick={() => setActiveTab('profile')}
                   >
                     <FaUser className="mr-3" />
-                    Profile
+                    <span className="font-medium">Profile</span>
                   </button>
                 </li>
                 <li>
                   <button
-                    className={`flex items-center w-full p-2 rounded transition-colors ${
+                    className={`flex items-center w-full p-4 transition-all duration-200 ${
                       activeTab === 'about'
-                        ? 'bg-[#e2b714] text-[#323437]'
-                        : 'hover:bg-[#3c3e41]'
+                        ? 'bg-[#232527] text-[#e2b714]'
+                        : 'text-[#646669] hover:text-[#a1a1a1]'
                     }`}
                     onClick={() => setActiveTab('about')}
                   >
                     <FaInfoCircle className="mr-3" />
-                    About
+                    <span className="font-medium">About</span>
                   </button>
                 </li>
               </ul>
@@ -81,9 +81,8 @@ const Settings = () => {
 
             {activeTab === 'profile' && (
               <div>
-                <h2 className="text-xl font-semibold mb-4">Profile Settings</h2>
-                <div className="bg-[#232527] rounded-lg p-4">
-                  <p className="text-[#d1d0c5]/80">
+                <div className="bg-[#2c2e31] rounded-lg p-6">
+                  <p className="text-[#a1a1a1]">
                     Profile settings will be implemented in a future update.
                   </p>
                 </div>
@@ -92,13 +91,12 @@ const Settings = () => {
 
             {activeTab === 'about' && (
               <div>
-                <h2 className="text-xl font-semibold mb-4">About TYPR</h2>
-                <div className="bg-[#232527] rounded-lg p-4">
-                  <p className="text-[#d1d0c5]/80 mb-4">
+                <div className="bg-[#2c2e31] rounded-lg p-6">
+                  <p className="text-[#a1a1a1] mb-4">
                     TYPR is a competitive typing racing app where you can challenge your typing
                     skills against others or practice on your own.
                   </p>
-                  <p className="text-[#d1d0c5]/80">
+                  <p className="text-[#a1a1a1]">
                     This app was created with React, TypeScript, and Firebase.
                   </p>
                 </div>
