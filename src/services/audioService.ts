@@ -104,23 +104,23 @@ class KeyboardSoundService {
   public async initialize(): Promise<void> {
     if (this.initialized) return;
     
-    // Only load sounds if enabled and not using silent theme
-    if (this.settings.enabled && this.settings.theme !== 'silent') {
-      // All themes use JSON config now
-      await this.initializeWebAudio();
-      await this.loadSoundPack(SOUND_PACK_DIRS[this.settings.theme]);
-    }
-    
+    // Only set initialized flag - actual sound loading will happen on first user interaction
     this.initialized = true;
+    
+    // Only load sounds if enabled and not using silent theme, but don't automatically create AudioContext
+    if (this.settings.enabled && this.settings.theme !== 'silent') {
+      console.log('Sound service initialized, sounds will load on first user interaction');
+    }
   }
 
   /**
    * Initialize Web Audio API
    */
-  private async initializeWebAudio(): Promise<void> {
+  private async initializeWebAudio(): Promise<AudioContext | null> {
     try {
       // Create audio context on first use (must be from user interaction)
       if (!this.audioContext) {
+        console.log('Creating AudioContext from user interaction');
         this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       
@@ -128,8 +128,11 @@ class KeyboardSoundService {
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
       }
+      
+      return this.audioContext;
     } catch (error) {
       console.error('Failed to initialize Web Audio API:', error);
+      return null;
     }
   }
 
@@ -230,10 +233,16 @@ class KeyboardSoundService {
   /**
    * Play a keyboard sound effect
    */
-  public playSound(type: KeyboardSoundType): void {
+  public async playSound(type: KeyboardSoundType): Promise<void> {
     // Skip if sounds are disabled or using silent theme
-    if (!this.settings.enabled || this.settings.theme === 'silent' || !this.initialized) {
+    if (!this.settings.enabled || this.settings.theme === 'silent') {
       return;
+    }
+    
+    // Lazy load sounds on first user interaction
+    if (!this.audioContext) {
+      await this.initializeWebAudio();
+      await this.loadSoundPack(SOUND_PACK_DIRS[this.settings.theme]);
     }
     
     const packDir = SOUND_PACK_DIRS[this.settings.theme];
@@ -243,9 +252,10 @@ class KeyboardSoundService {
   /**
    * Play a sound from a sound pack using Web Audio API
    */
-  private playSoundFromPack(packName: string, soundType: KeyboardSoundType): void {
+  private async playSoundFromPack(packName: string, soundType: KeyboardSoundType): Promise<void> {
+    // Skip if no audio context (should be initialized by playSound)
     if (!this.audioContext) {
-      this.initializeWebAudio().then(() => this.loadSoundPack(packName));
+      console.warn('AudioContext not initialized');
       return;
     }
     
@@ -257,7 +267,7 @@ class KeyboardSoundService {
     
     // Check if this is a multi-file pack
     if (config.multipleFiles && config.files && config.files.length > 0) {
-      this.playMultiFileSoundFromPack(packName, soundType, config);
+      await this.playMultiFileSoundFromPack(packName, soundType, config);
       return;
     }
     
@@ -307,7 +317,7 @@ class KeyboardSoundService {
   /**
    * Play a sound from a multi-file sound pack
    */
-  private playMultiFileSoundFromPack(packName: string, soundType: KeyboardSoundType, config: SoundPackConfig): void {
+  private async playMultiFileSoundFromPack(packName: string, soundType: KeyboardSoundType, config: SoundPackConfig): Promise<void> {
     if (!this.audioContext || !config.files || config.files.length === 0) return;
     
     try {
@@ -325,18 +335,18 @@ class KeyboardSoundService {
         // If no specific definition, just play a random file
         const fileIndex = Math.floor(Math.random() * config.files.length);
         const fileName = config.files[fileIndex];
-        this.playAudioFile(fileName);
+        await this.playAudioFile(fileName);
         return;
       }
       
       // If the definition is a string, it's a filename
       if (typeof keyDefinition === 'string') {
-        this.playAudioFile(keyDefinition);
+        await this.playAudioFile(keyDefinition);
       } else {
         // Otherwise, it's a random file from the list
         const fileIndex = Math.floor(Math.random() * config.files.length);
         const fileName = config.files[fileIndex];
-        this.playAudioFile(fileName);
+        await this.playAudioFile(fileName);
       }
     } catch (error) {
       console.error('Error playing sound from multi-file pack:', error);
@@ -346,7 +356,7 @@ class KeyboardSoundService {
   /**
    * Helper method to play an audio file from the multi-file buffers
    */
-  private playAudioFile(fileName: string): void {
+  private async playAudioFile(fileName: string): Promise<void> {
     const buffer = this.multiFileAudioBuffers.get(fileName);
     if (!buffer || !this.audioContext) {
       console.warn(`Audio buffer for ${fileName} not loaded`);

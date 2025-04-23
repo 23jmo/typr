@@ -26,11 +26,6 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   const textContainerRef = useRef<HTMLDivElement>(null);
   const [prevInputLength, setPrevInputLength] = useState(0);
 
-  // Initialize keyboard sounds
-  useEffect(() => {
-    keyboardSoundService.initialize();
-  }, []);
-
   // Track changes in user input to play sounds based on character correctness
   useEffect(() => {
     // Skip if the length hasn't changed (no new keypresses)
@@ -53,7 +48,9 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
           // The parent components already handle basic keypress sounds
           const settings = keyboardSoundService.getSettings();
           if (settings.enabled && settings.theme !== 'silent') {
-            keyboardSoundService.playSound('error');
+            keyboardSoundService.playSound('error').catch(err => 
+              console.error('Error playing error sound:', err)
+            );
           }
         }
       }
