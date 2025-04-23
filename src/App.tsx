@@ -14,6 +14,7 @@ import Stats from './pages/Stats'
 import CustomRoom from './pages/CustomRoom'
 import Solo from './pages/Solo'
 import Ranked from './pages/Ranked'
+import Settings from './pages/Settings'
 // Create a separate component for the routes
 const AppRoutes = () => {
   const [user, loading] = useAuthState(auth)
@@ -64,6 +65,7 @@ const AppRoutes = () => {
           <Route path="/solo" element={<Solo />} />
           <Route path="/race/:roomId" element={<RaceRoom />} />
           <Route path="/stats" element={<Stats />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
