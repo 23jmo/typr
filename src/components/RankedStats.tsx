@@ -1,31 +1,23 @@
 import { useUser } from "../contexts/UserContext";
-import { rankedIcons } from "../types/ranks";
+import { getRankByElo, getNextRank } from "../types/ranks";
+import RankIcon from "./RankIcon";
 
 const RankedStats = () => {
   const { userData } = useUser();
+  const elo = userData?.stats?.overall?.elo || 0;
 
-  const getUserRank = () => {
-    return (
-      Object.values(rankedIcons).find(
-        (rank) =>
-          userData?.stats?.overall?.elo &&
-          userData?.stats?.overall?.elo >= rank.minElo &&
-          userData?.stats?.overall?.elo <= rank.maxElo
-      ) || rankedIcons.plastic
-    );
-  };
-
-  const currentRank = getUserRank();
-  const nextRank = Object.values(rankedIcons).find(
-    (rank) => rank.minElo > (userData?.stats?.overall?.elo || 0)
-  );
+  // Get current rank and next rank
+  const currentRank = getRankByElo(elo);
+  const nextRank = getNextRank(elo);
 
   return (
     <div className="mb-10">
       {/* Rank Display */}
       <div className="bg-[#2c2e31] rounded-lg p-8 mb-8">
         <div className="flex items-center gap-8">
-          <div className="text-6xl">{currentRank.icon}</div>
+          <div className="text-6xl">
+            <RankIcon rankKey={currentRank.rankKey} size={60} />
+          </div>
           <div>
             <h2 className="text-4xl font-bold text-[#e2b714] mb-2">
               {currentRank.name}
@@ -33,7 +25,7 @@ const RankedStats = () => {
             <p className="text-[#646669]">
               {nextRank
                 ? `${
-                    nextRank.minElo - (userData?.stats?.overall?.elo || 0)
+                    nextRank.minElo - elo
                   } WPM until ${nextRank.name}`
                 : "Maximum rank achieved!"}
             </p>
@@ -49,7 +41,7 @@ const RankedStats = () => {
             <div>
               <p className="text-[#646669] text-sm">Rating</p>
               <p className="text-3xl text-[#e2b714]">
-                {userData?.stats?.overall?.elo || 1000}
+                {elo}
               </p>
             </div>
             <div>
@@ -98,7 +90,7 @@ const RankedStats = () => {
               className="absolute h-full bg-[#e2b714] rounded-full transition-all duration-300"
               style={{
                 width: `${
-                  (((userData?.stats?.overall?.elo || 0) - currentRank.minElo) /
+                  ((elo - currentRank.minElo) /
                     (nextRank ? nextRank.minElo - currentRank.minElo : 1)) *
                   100
                 }%`,

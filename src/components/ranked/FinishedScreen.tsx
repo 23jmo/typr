@@ -12,7 +12,8 @@ import {
   FaHistory,
 
 } from "react-icons/fa";
-import { rankedIcons } from "../../types/ranks";
+import { rankedIcons, getRankByElo, getNextRank, RankKey } from "../../types/ranks";
+import { RankIcon } from "../../components";
 import "./FinishedScreen.css";
 import { userStatsService } from "../../services/firebase";
 
@@ -79,13 +80,7 @@ const FinishedScreen = ({
 
   // Find current and next rank
   const getCurrentRank = (elo: number) => {
-    const ranks = Object.entries(rankedIcons);
-    for (const [key, rank] of ranks) {
-      if (elo >= rank.minElo && elo <= rank.maxElo) {
-        return { rankKey: key, ...rank };
-      }
-    }
-    return { rankKey: "plastic", ...ranks[0][1] }; // Default to first rank
+    return getRankByElo(elo);
   };
 
   const currentRank = getCurrentRank(currentElo);
@@ -315,8 +310,7 @@ const FinishedScreen = ({
         {userId && isRanked && (
           <div className="bg-[#333333] p-4 md:p-6 rounded-lg mb-4 md:mb-6 border border-[#444444]">
             <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6 flex items-center gap-2 text-white border-b border-[#444444] pb-3">
-              <span className="text-yellow-400">{currentRank.icon}</span> Rank
-              Progress
+              <RankIcon rankKey={currentRank.rankKey} size={24} className="text-yellow-400" /> Rank Progress
             </h3>
 
             <div className="flex items-center justify-between mb-4">
@@ -343,8 +337,8 @@ const FinishedScreen = ({
             <div className="mb-2 flex justify-between text-sm">
               <span className="text-gray-400">{currentRank.name}</span>
               {isNextRankDifferent ? (
-                <span className="text-yellow-400 animate-pulse font-bold">
-                  Ranked up to {nextRank.name}! {nextRank.icon}
+                <span className="text-yellow-400 animate-pulse font-bold flex items-center gap-1">
+                  Ranked up to {nextRank.name}! <RankIcon rankKey={nextRank.rankKey} size={20} />
                 </span>
               ) : (
                 <span className="text-gray-400">
