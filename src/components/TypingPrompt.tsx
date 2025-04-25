@@ -184,19 +184,25 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
     const viewportHeight = window.innerHeight;
     const elementRect = targetElement.getBoundingClientRect();
     
-    // Calculate ideal position (center in viewport)
-    const idealPosition = viewportHeight / 2;
+    // Calculate ideal position - higher on mobile devices (1/4 from top)
+    // On desktop, keep it at center (1/2 from top)
+    const idealPosition = isMobile 
+      ? viewportHeight * 0.25  // 1/4 down from top on mobile (or 3/4 up from bottom)
+      : viewportHeight / 2;    // Center on desktop
+    
     const elementCenter = elementRect.top + (elementRect.height / 2);
     
-    // Only scroll if the element is not reasonably centered already
-    if (Math.abs(idealPosition - elementCenter) > 100) {
+    // Only scroll if the element is not reasonably positioned already
+    // Use smaller threshold on mobile for more responsive scrolling
+    const threshold = isMobile ? 50 : 100;
+    if (Math.abs(idealPosition - elementCenter) > threshold) {
       const scrollAmount = window.pageYOffset + (elementCenter - idealPosition);
       window.scrollTo({
         top: scrollAmount,
         behavior: 'smooth'
       });
     }
-  }, []);
+  }, [isMobile]);
 
   // Cursor Position Update Effect
   useEffect(() => {
