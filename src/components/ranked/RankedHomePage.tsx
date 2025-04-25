@@ -1,5 +1,6 @@
-import { rankedIcons } from "../../types/ranks";
+import { getRankByElo } from "../../types/ranks";
 import { useUser } from "../../contexts/UserContext";
+import { RankIcon } from "../../components";
 
 interface RankedHomePageProps {
   onMatchmakingStarted: () => void;
@@ -7,13 +8,8 @@ interface RankedHomePageProps {
 
 const RankedHomePage = ({ onMatchmakingStarted }: RankedHomePageProps) => {
   const { userData } = useUser();
-  const currentRank =
-    Object.values(rankedIcons).find(
-      (rank) =>
-        userData?.stats?.overall?.elo &&
-        userData?.stats?.overall?.elo >= rank.minElo &&
-        userData?.stats?.overall?.elo <= rank.maxElo
-    ) || rankedIcons.plastic;
+  const elo = userData?.stats?.overall?.elo || 0;
+  const currentRank = getRankByElo(elo);
 
   return (
     <div className="max-w-5xl mx-auto p-8 pt-24">
@@ -35,7 +31,9 @@ const RankedHomePage = ({ onMatchmakingStarted }: RankedHomePageProps) => {
       <div className="bg-[#2c2e31] rounded-lg p-8 mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <div className="text-5xl">{currentRank.icon}</div>
+            <div className="text-5xl">
+              <RankIcon rankKey={currentRank.rankKey} size={60} />
+            </div>
             <div>
               <h2 className="text-2xl font-bold text-[#d1d0c5]">
                 {currentRank.name}
