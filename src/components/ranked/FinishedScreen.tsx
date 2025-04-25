@@ -12,7 +12,7 @@ import {
   FaHistory,
 
 } from "react-icons/fa";
-import { rankedIcons, getRankByElo, getNextRank, RankKey } from "../../types/ranks";
+import { rankedIcons, getRankByElo } from "../../types/ranks";
 import { RankIcon } from "../../components";
 import "./FinishedScreen.css";
 import { userStatsService } from "../../services/firebase";
