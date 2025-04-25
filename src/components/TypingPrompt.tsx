@@ -78,8 +78,17 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
     // Focus the input when component mounts or when race starts
     if (inputRef.current && !isFinished) {
       inputRef.current.focus();
+      
+      // For mobile devices, ensure keyboard appears
+      if (isMobile) {
+        // For iOS specifically, blur and focus again to ensure keyboard shows up
+        if (/iPad|iPhone|iPod/i.test(navigator.userAgent) && !(window as any).MSStream) {
+          inputRef.current.blur();
+          inputRef.current.focus();
+        }
+      }
     }
-  }, [isFinished]);
+  }, [isFinished, isMobile]);
 
   // Handle input changes from the hidden field
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,6 +131,15 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   // Re-focus on the input when user clicks on the text container
   const handleContainerClick = useCallback(() => {
     if (inputRef.current && !isFinished) {
+      inputRef.current.focus();
+    }
+  }, [isFinished]);
+
+  // Handle touchstart event for mobile devices
+  const handleContainerTouch = useCallback((e: React.TouchEvent) => {
+    if (inputRef.current && !isFinished) {
+      // Prevent default only to avoid double-tap zoom
+      e.preventDefault();
       inputRef.current.focus();
     }
   }, [isFinished]);
@@ -254,8 +272,13 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
           // Force iOS to show keyboard
           fontSize: '16px',
           // Position offscreen but still accessible
-          position: 'fixed',
-          top: '-1000px'
+          position: 'absolute',
+          top: '0',
+          left: '0',
+          opacity: 0,
+          height: '1px',
+          width: '1px',
+          pointerEvents: 'none'
         }}
       />
       
@@ -267,6 +290,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
           lineHeight: '1.5em'
         }}
         onClick={handleContainerClick}
+        onTouchStart={handleContainerTouch}
       >
         <div className="flex flex-wrap" style={{ gap: '0.5em 0' }}>
           {!isFinished && (
