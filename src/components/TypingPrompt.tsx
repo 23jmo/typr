@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { getCursorCoordinates } from "../utils/race";
 import { keyboardSoundService } from '../services/audioService';
 
@@ -12,6 +12,8 @@ interface TypingPromptProps {
   setCursorPosition: (position: { x: number; y: number }) => void;
   opponentCursors: { [playerId: string]: { position: number; color: string } };
   roomState: any; // TODO: Add proper type
+  onInputChange?: (newInput: string) => void;
+  onInputSubmit?: () => void;
 }
 
 const TypingPrompt: React.FC<TypingPromptProps> = ({
@@ -22,9 +24,125 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   setCursorPosition,
   opponentCursors,
   roomState,
+  onInputChange,
+  onInputSubmit,
 }) => {
   const textContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [localInput, setLocalInput] = useState('');
   const [prevInputLength, setPrevInputLength] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  const outerContainerRef = useRef<HTMLDivElement>(null);
+
+  // Sync props with local state
+  useEffect(() => {
+    setLocalInput(userInput);
+  }, [userInput]);
+
+  // Update the mobile detection and add iOS detection
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      return /android|iPad|iPhone|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+    };
+    
+    const isIOS = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      return /iPad|iPhone|iPod/i.test(userAgent) && !(window as any).MSStream;
+    };
+    
+    setIsMobile(checkMobile());
+    
+    // For iOS, we need to use a slightly different approach
+    if (isIOS() && inputRef.current) {
+      // iOS requires user interaction before focusing
+      const handleFirstTouch = () => {
+        if (inputRef.current && !isFinished) {
+          inputRef.current.focus();
+          // Remove event listener after first touch
+          document.removeEventListener('touchstart', handleFirstTouch);
+        }
+      };
+      
+      document.addEventListener('touchstart', handleFirstTouch);
+      
+      // Cleanup
+      return () => {
+        document.removeEventListener('touchstart', handleFirstTouch);
+      };
+    }
+  }, [isFinished]);
+
+  // Auto-focus input field
+  useEffect(() => {
+    // Focus the input when component mounts or when race starts
+    if (inputRef.current && !isFinished) {
+      inputRef.current.focus();
+      
+      // For mobile devices, ensure keyboard appears
+      if (isMobile) {
+        // For iOS specifically, blur and focus again to ensure keyboard shows up
+        if (/iPad|iPhone|iPod/i.test(navigator.userAgent) && !(window as any).MSStream) {
+          inputRef.current.blur();
+          inputRef.current.focus();
+        }
+      }
+    }
+  }, [isFinished, isMobile]);
+
+  // Handle input changes from the hidden field
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isFinished) return;
+    
+    const value = e.target.value;
+    // For mobile, we're using the last character typed
+    if (isMobile && value.length > 0) {
+      const lastChar = value.charAt(value.length - 1);
+      // Add last character to existing input
+      const newInput = userInput + lastChar;
+      if (onInputChange) {
+        onInputChange(newInput);
+      }
+      // Clear the input field to get ready for next character
+      e.target.value = '';
+    }
+  }, [isFinished, isMobile, userInput, onInputChange]);
+
+  // Handle input key presses
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isFinished) return;
+    
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (userInput.length > 0) {
+        const newInput = userInput.slice(0, -1);
+        if (onInputChange) {
+          onInputChange(newInput);
+        }
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (onInputSubmit) {
+        onInputSubmit();
+      }
+    }
+  }, [isFinished, userInput, onInputChange, onInputSubmit]);
+
+  // Re-focus on the input when user clicks on the text container
+  const handleContainerClick = useCallback(() => {
+    if (inputRef.current && !isFinished) {
+      inputRef.current.focus();
+    }
+  }, [isFinished]);
+
+  // Handle touchstart event for mobile devices
+  const handleContainerTouch = useCallback((e: React.TouchEvent) => {
+    if (inputRef.current && !isFinished) {
+      // Prevent default only to avoid double-tap zoom
+      e.preventDefault();
+      inputRef.current.focus();
+    }
+  }, [isFinished]);
 
   // Track changes in user input to play sounds based on character correctness
   useEffect(() => {
@@ -59,6 +177,33 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
     setPrevInputLength(userInput.length);
   }, [userInput, text]);
 
+  // Function to check and scroll text into center view
+  const scrollTextToCenter = useCallback((targetElement: HTMLElement) => {
+    if (!targetElement) return;
+    
+    const viewportHeight = window.innerHeight;
+    const elementRect = targetElement.getBoundingClientRect();
+    
+    // Calculate ideal position - higher on mobile devices (1/4 from top)
+    // On desktop, keep it at center (1/2 from top)
+    const idealPosition = isMobile 
+      ? viewportHeight * 0.25  // 1/4 down from top on mobile (or 3/4 up from bottom)
+      : viewportHeight / 2;    // Center on desktop
+    
+    const elementCenter = elementRect.top + (elementRect.height / 2);
+    
+    // Only scroll if the element is not reasonably positioned already
+    // Use smaller threshold on mobile for more responsive scrolling
+    const threshold = isMobile ? 50 : 100;
+    if (Math.abs(idealPosition - elementCenter) > threshold) {
+      const scrollAmount = window.pageYOffset + (elementCenter - idealPosition);
+      window.scrollTo({
+        top: scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  }, [isMobile]);
+
   // Cursor Position Update Effect
   useEffect(() => {
     if (textContainerRef.current) {
@@ -79,6 +224,9 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
           const x = rect.right - containerRect.left;
           const y = rect.top - containerRect.top;
           setCursorPosition({ x, y });
+          
+          // Use the scrollTextToCenter for better positioning
+          scrollTextToCenter(targetChar);
         }
       } else {
         targetChar = chars[cursorIndex];
@@ -88,6 +236,9 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
           const x = rect.left - containerRect.left;
           const y = rect.top - containerRect.top;
           setCursorPosition({ x, y });
+          
+          // Use the scrollTextToCenter for better positioning
+          scrollTextToCenter(targetChar);
         }
       }
 
@@ -102,17 +253,50 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
         setCursorPosition({ x: 0, y: 0 });
       }
     }
-  }, [userInput, text, setCursorPosition]);
+  }, [userInput, text, setCursorPosition, scrollTextToCenter]);
 
   return (
-    <div className="w-full max-w-[90%] mt-[30vh]">
+    <div 
+      ref={outerContainerRef}
+      className="w-full max-w-[95%] sm:max-w-[90%] mt-[12vh] sm:mt-[12vh] md:mt-[10vh] lg:mt-[30vh] mx-auto"
+    >
+      {/* Hidden input for mobile keyboard */}
+      <input
+        ref={inputRef}
+        type="text"
+        value={localInput}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        className="opacity-0 absolute h-1 w-1 -z-10"
+        autoCapitalize="off"
+        autoCorrect="off"
+        autoComplete="off"
+        spellCheck="false"
+        autoFocus={!isFinished}
+        aria-label="Type here"
+        style={{ 
+          // Force iOS to show keyboard
+          fontSize: '16px',
+          // Position offscreen but still accessible
+          position: 'absolute',
+          top: '0',
+          left: '0',
+          opacity: 0,
+          height: '1px',
+          width: '1px',
+          pointerEvents: 'none'
+        }}
+      />
+      
       <div
         ref={textContainerRef}
-        className="text-4xl font-mono relative select-none"
+        className="text-3xl sm:text-2xl md:text-3xl lg:text-4xl font-mono relative select-none"
         style={{ 
           minHeight: '1.5em',
           lineHeight: '1.5em'
         }}
+        onClick={handleContainerClick}
+        onTouchStart={handleContainerTouch}
       >
         <div className="flex flex-wrap" style={{ gap: '0.5em 0' }}>
           {!isFinished && (
@@ -146,7 +330,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
                     className={`absolute w-0.5 h-[1.1em] ${color} opacity-60 top-[0.1em]`}
                   />
                   <span
-                    className={`absolute top-[-1.6em] left-[-50%] transform translate-x-[-50%]] text-xs ${color.replace(
+                    className={`absolute top-[-1.6em] left-[-50%] text-[8px] sm:text-[10px] md:text-xs ${color.replace(
                       "bg-",
                       "text-"
                     )} whitespace-nowrap px-1 rounded bg-black bg-opacity-50`}
@@ -183,7 +367,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
                     <span 
                       key={charIndex} 
                       className="char-wrapper inline-flex items-center justify-center" 
-                      style={{ width: '0.6em', height: '1.2em' }}
+                      style={{ width: 'calc(0.6em)', height: 'calc(1.2em)' }}
                     >
                       <span
                         className={`${charColor}`}

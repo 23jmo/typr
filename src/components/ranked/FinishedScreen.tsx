@@ -12,7 +12,8 @@ import {
   FaHistory,
 
 } from "react-icons/fa";
-import { rankedIcons } from "../../types/ranks";
+import { rankedIcons, getRankByElo } from "../../types/ranks";
+import { RankIcon } from "../../components";
 import "./FinishedScreen.css";
 import { userStatsService } from "../../services/firebase";
 
@@ -53,6 +54,18 @@ const FinishedScreen = ({
 
   // Stats update tracking
   const [statsUpdated, setStatsUpdated] = useState(false);
+  
+  // Check if this is a ranked game - handle both property naming conventions
+  const isRanked = ("ranked" in gameData && (gameData as RankedGameData).ranked === true) || gameData.isRanked === true;
+  
+  // Log game data properties for debugging
+  console.log("[FinishedScreen] Game data properties:", {
+    isRanked,
+    hasRankedProp: "ranked" in gameData,
+    rankedValue: "ranked" in gameData ? (gameData as any).ranked : undefined,
+    hasIsRankedProp: "isRanked" in gameData,
+    isRankedValue: "isRanked" in gameData ? gameData.isRanked : undefined
+  });
 
   // Calculate real ELO change based on the game data
   const [eloChange, setEloChange] = useState<number>(0);
@@ -67,13 +80,7 @@ const FinishedScreen = ({
 
   // Find current and next rank
   const getCurrentRank = (elo: number) => {
-    const ranks = Object.entries(rankedIcons);
-    for (const [key, rank] of ranks) {
-      if (elo >= rank.minElo && elo <= rank.maxElo) {
-        return { rankKey: key, ...rank };
-      }
-    }
-    return { rankKey: "plastic", ...ranks[0][1] }; // Default to first rank
+    return getRankByElo(elo);
   };
 
   const currentRank = getCurrentRank(currentElo);
@@ -137,7 +144,7 @@ const FinishedScreen = ({
         charactersTyped,
         totalMistakes,
         timePlayed,
-        isRanked: true,
+        isRanked,
         isWinner,
         gameId,
       });
@@ -157,15 +164,14 @@ const FinishedScreen = ({
     isWinner,
     statsUpdated,
     refreshUserData,
+    isRanked,
   ]);
 
   // Calculate ELO change
   useEffect(() => {
-    // Check if this is a ranked game
-    const isRanked =
-      "ranked" in gameData && (gameData as RankedGameData).ranked === true;
-
-    if (isRanked && userId && gameData.winner) {
+    if (!isRanked) return;
+    
+    if (userId && gameData.winner) {
       const rankedGameData = gameData as RankedGameData;
 
       // Get the initial ELO values
@@ -221,7 +227,7 @@ const FinishedScreen = ({
       setEloChange(fallbackChange);
       setNewElo(userElo + fallbackChange);
     }
-  }, [gameData, userId, isWinner, userData]);
+  }, [gameData, userId, isWinner, userData, isRanked]);
 
   const handlePlayAgain = () => {
     if (socket) {
@@ -301,11 +307,10 @@ const FinishedScreen = ({
         </div>
 
         {/* ELO Change and Rank Progress Section */}
-        {userId && (
+        {userId && isRanked && (
           <div className="bg-[#333333] p-4 md:p-6 rounded-lg mb-4 md:mb-6 border border-[#444444]">
             <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6 flex items-center gap-2 text-white border-b border-[#444444] pb-3">
-              <span className="text-yellow-400">{currentRank.icon}</span> Rank
-              Progress
+              <RankIcon rankKey={currentRank.rankKey} size={24} className="text-yellow-400" /> Rank Progress
             </h3>
 
             <div className="flex items-center justify-between mb-4">
@@ -332,8 +337,8 @@ const FinishedScreen = ({
             <div className="mb-2 flex justify-between text-sm">
               <span className="text-gray-400">{currentRank.name}</span>
               {isNextRankDifferent ? (
-                <span className="text-yellow-400 animate-pulse font-bold">
-                  Ranked up to {nextRank.name}! {nextRank.icon}
+                <span className="text-yellow-400 animate-pulse font-bold flex items-center gap-1">
+                  Ranked up to {nextRank.name}! <RankIcon rankKey={nextRank.rankKey} size={20} />
                 </span>
               ) : (
                 <span className="text-gray-400">
@@ -345,46 +350,69 @@ const FinishedScreen = ({
               )}
             </div>
 
-            <div className="relative h-4 bg-[#222222] rounded-full overflow-hidden mb-1">
-              {/* Current rank marker */}
-              <div
-                className="absolute top-0 h-full w-0.5 bg-gray-400 z-10"
-                style={{ left: "0%" }}
-                title={`${currentRank.name} starts at ${currentRank.minElo} ELO`}
+            {/* Progress bar container - curved container */}
+            <div className="relative h-5 bg-[#1a1a1a] rounded-lg overflow-hidden mb-2">
+              {/* Rank boundary guides */}
+              <div className="absolute inset-0 flex justify-between px-1 items-center pointer-events-none">
+                <div className="h-3 w-0.5 bg-gray-700 opacity-50 rounded" />
+                {currentRank.maxElo !== Infinity && (
+                  <div className="h-3 w-0.5 bg-gray-700 opacity-50 rounded" />
+                )}
+              </div>
+              
+              {/* Determine progress bar appearance based on ELO change */}
+              {eloChange >= 0 ? (
+                // Gaining ELO (positive change)
+                <>
+                  {/* Base yellow progress (original ELO) - flat edges */}
+                  <div
+                    className="absolute h-full bg-yellow-500 transition-all duration-800 ease-out"
+                    style={{ width: `${oldProgress}%` }}
+                  />
+                  
+                  {/* Green gain section - flat edges */}
+                  {progressWidth > oldProgress && (
+                    <div
+                      className="absolute h-full bg-green-600 transition-all duration-800 ease-out"
+                      style={{ 
+                        width: `${progressWidth - oldProgress}%`, 
+                        left: `${oldProgress}%`,
+                      }}
+                    />
+                  )}
+                </>
+              ) : (
+                // Losing ELO (negative change)
+                <>
+                  {/* Red section for lost ELO - flat edges */}
+                  {oldProgress > progressWidth && (
+                    <div
+                      className="absolute h-full bg-red-600 transition-all duration-800 ease-out"
+                      style={{ 
+                        width: `${oldProgress - progressWidth}%`,
+                        left: `${progressWidth}%`,
+                      }}
+                    />
+                  )}
+                  
+                  {/* Yellow for remaining ELO - flat edges */}
+                  <div
+                    className="absolute h-full bg-yellow-500 transition-all duration-800 ease-out"
+                    style={{ 
+                      width: `${progressWidth}%`, 
+                    }}
+                  />
+                </>
+              )}
+              
+              {/* Current position marker */}
+              <div 
+                className="absolute h-full w-0.5 bg-white z-10 transition-all duration-800 ease-out"
+                style={{
+                  left: `${progressWidth}%`,
+                  boxShadow: '0 0 5px 1px rgba(255, 255, 255, 0.5)',
+                }}
               />
-
-              {/* Next rank marker */}
-              {currentRank.maxElo !== Infinity && (
-                <div
-                  className="absolute top-0 h-full w-0.5 bg-yellow-400 z-10"
-                  style={{ left: "100%" }}
-                  title={`${
-                    Object.values(rankedIcons).find(
-                      (r) => r.minElo > currentRank.maxElo
-                    )?.name
-                  } starts at ${currentRank.maxElo + 1} ELO`}
-                />
-              )}
-
-              {/* Original ELO progress */}
-              <div
-                className="absolute h-full bg-gradient-to-r from-yellow-600 to-yellow-400"
-                style={{ width: `${oldProgress}%`, left: 0 }}
-              ></div>
-
-              {/* Gained ELO progress (animated) */}
-              {eloChange > 0 && (
-                <div
-                  className="absolute h-full transition-all duration-1000 ease-out overflow-hidden"
-                  style={{
-                    width: `${progressWidth - oldProgress}%`,
-                    left: `${oldProgress}%`,
-                    transitionProperty: "width",
-                    background: `repeating-linear-gradient(45deg, rgba(255, 204, 0, 0.9), rgba(255, 204, 0, 0.9) 8px, rgba(255, 180, 0, 0.7) 8px, rgba(255, 180, 0, 0.7) 16px)`,
-                    animation: "moveStripes 2s linear infinite",
-                  }}
-                ></div>
-              )}
             </div>
 
             {/* ELO markers */}

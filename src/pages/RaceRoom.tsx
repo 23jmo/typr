@@ -37,6 +37,7 @@ const RaceRoom = () => {
   const [charStats, setCharStats] = useState({ correct: 0, incorrect: 0, extra: 0, missed: 0 });
   const [opponentCursors, setOpponentCursors] = useState<{ [playerId: string]: { position: number; color: string } }>({});
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Refs
   const textContainerRef = useRef<HTMLDivElement>(null);
@@ -49,6 +50,18 @@ const RaceRoom = () => {
   // =========================================
   useEffect(() => {
     keyboardSoundService.initialize();
+  }, []);
+
+  // =========================================
+  // Detect mobile devices
+  // =========================================
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      return /android|iPad|iPhone|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+    };
+    
+    setIsMobile(checkMobile());
   }, []);
 
   // =========================================
@@ -247,6 +260,9 @@ const RaceRoom = () => {
   // Key Press Handler Effect
   // =========================================
   useEffect(() => {
+    // Skip adding window keypress event on mobile devices
+    if (isMobile) return;
+
     const handleKeyPress = (e: KeyboardEvent) => {
       if (!socket || !roomState || isFinished) return;
 
@@ -403,6 +419,7 @@ const RaceRoom = () => {
     charStats,
     wpm,
     accuracy,
+    isMobile,
   ]);
 
   // =========================================
@@ -606,14 +623,8 @@ const RaceRoom = () => {
   // =========================================
   return (
     <div className="flex flex-col items-center min-h-screen p-4 bg-[#2c2e31] text-[#d1d0c5]">
-      <div className="fixed top-0 left-0 bg-black bg-opacity-70 p-2 text-xs text-white z-50">
-        User: {localUsername} ({localUserId?.substring(0,6)}), Room: {roomId}, Status:{" "}
-        {roomState?.status}, Socket: {isConnected ? 'Connected' : 'Disconnected'}
-        {socketError && <span className="text-red-400"> | Error: {socketError}</span>}
-      </div>
-
-       <div className="fixed top-10 left-4 space-y-2 z-40 bg-[#232527] p-3 rounded shadow-lg max-h-[80vh] overflow-y-auto">
-         <h3 className="font-bold mb-2 border-b border-[#3c3e41] pb-1">Players ({Object.keys(roomState.players).length}/{roomState.playerLimit})</h3>
+      <div className="fixed top-15 left-4 space-y-1 z-40 bg-[#232527] p-2 rounded shadow-lg max-h-[80vh] overflow-y-auto max-w-[180px]">
+        <h3 className="font-bold mb-1 text-sm border-b border-[#3c3e41] pb-1">Players ({Object.keys(roomState.players).length}/{roomState.playerLimit})</h3>
           {Object.values(roomState.players)
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((player) => (
@@ -694,6 +705,135 @@ const RaceRoom = () => {
           setCursorPosition={setCursorPosition}
           opponentCursors={opponentCursors}
           roomState={roomState}
+          onInputChange={(newInput) => {
+            // Handle input changes from mobile devices
+            if (!socket || !roomState || isFinished || roomState.status !== "racing") return;
+            
+            // If a new character was added
+            if (newInput.length > userInput.length) {
+              const newChar = newInput.charAt(newInput.length - 1);
+              
+              // Play key sound based on the key pressed
+              if (newChar === " ") {
+                keyboardSoundService.playSound("space");
+              } else {
+                keyboardSoundService.playSound("keypress");
+              }
+
+              const currentIndex = newInput.length - 1;
+              let currentCorrect = charStats.correct;
+              let currentIncorrect = charStats.incorrect;
+              let currentExtra = charStats.extra;
+
+              if (currentIndex >= text.length) {
+                currentExtra++;
+              } else if (newInput[currentIndex] === text[currentIndex]) {
+                currentCorrect++;
+              } else {
+                currentIncorrect++;
+                // Play error sound
+                keyboardSoundService.playSound("error");
+              }
+
+              const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
+              setCharStats(newCharStats);
+
+              const totalChars = newCharStats.correct + newCharStats.incorrect + newCharStats.extra;
+              const currentAccuracy = Math.round((newCharStats.correct / totalChars) * 100) || 100;
+              setAccuracy(currentAccuracy);
+
+              // Set start time if not set yet
+              if (!startTime && roomState.status === 'racing') {
+                if (!roomState.startTime) {
+                  setStartTime(Date.now());
+                }
+              }
+
+              const elapsed = Date.now() - (startTime || Date.now());
+              const currentWpm = calculateWpm(newCharStats.correct, elapsed);
+              setWpm(currentWpm);
+              setWpmHistory((prev) => [...prev, { wpm: currentWpm, time: elapsed }]);
+
+              // Update progress
+              const progress = (newInput.length / text.length) * 100;
+              socket.emit("updateProgress", {
+                wpm: currentWpm,
+                accuracy: currentAccuracy,
+                progress: progress,
+              });
+
+              // Update local player's progress
+              setRoomState(prev => {
+                if (!prev || !localUserId) return prev;
+                return {
+                  ...prev,
+                  players: {
+                    ...prev.players,
+                    [localUserId]: {
+                      ...prev.players[localUserId],
+                      progress: progress,
+                      wpm: currentWpm
+                    }
+                  }
+                };
+              });
+
+              if (newInput.length === text.length) {
+                setIsFinished(true);
+                socket.emit("playerFinished", {
+                  finalWpm: currentWpm,
+                  finalAccuracy: currentAccuracy
+                });
+              }
+            } 
+            // If a character was deleted (backspace)
+            else if (newInput.length < userInput.length) {
+              // Play backspace sound
+              keyboardSoundService.playSound("backspace");
+
+              const deletedIndex = userInput.length - 1;
+              let currentCorrect = charStats.correct;
+              let currentIncorrect = charStats.incorrect;
+              let currentExtra = charStats.extra;
+
+              if (deletedIndex >= text.length) {
+                currentExtra = Math.max(0, currentExtra - 1);
+              } else if (userInput[deletedIndex] === text[deletedIndex]) {
+                currentCorrect = Math.max(0, currentCorrect - 1);
+              } else {
+                currentIncorrect = Math.max(0, currentIncorrect - 1);
+              }
+
+              const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
+              setCharStats(newCharStats);
+
+              const progress = (newInput.length / text.length) * 100;
+              socket.emit("updateProgress", {
+                wpm,
+                accuracy,
+                progress: Math.max(0, progress),
+              });
+
+              // Update local player's progress
+              setRoomState(prevState => {
+                if (!prevState || !localUserId) return prevState;
+                return {
+                  ...prevState,
+                  players: {
+                    ...prevState.players,
+                    [localUserId]: {
+                      ...prevState.players[localUserId],
+                      progress: Math.max(0, progress),
+                      wpm
+                    }
+                  }
+                };
+              });
+            }
+            
+            // Finally, update the user input
+            setUserInput(newInput);
+          }}
         />
       )}
 
