@@ -224,7 +224,6 @@ export async function generateTextByTopic(topic: string): Promise<string> {
     // Get fallback texts for the specified topic, or use a default if not found
     const topicTexts = fallbackTexts[topic.toLowerCase()] || [
       "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!",
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
       "She sells seashells by the seashore. The shells she sells are surely seashells. So if she sells shells on the seashore, I'm sure she sells seashore shells.",
     ];
 
