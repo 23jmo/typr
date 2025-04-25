@@ -105,7 +105,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   }, [userInput, text, setCursorPosition]);
 
   return (
-    <div className="w-full max-w-[90%] mt-[30vh]">
+    <div className="w-full max-w-[90%] mt-[30vh] mx-auto">
       <div
         ref={textContainerRef}
         className="text-4xl font-mono relative select-none"
