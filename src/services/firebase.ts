@@ -137,6 +137,12 @@ export const userStatsService = {
           newGamesPlayed
       );
 
+      // Calculate new average accuracy
+      const newAverageAccuracy = Math.round(
+        (currentStats.averageAccuracy * currentStats.gamesPlayed + gameResult.accuracy) /
+          newGamesPlayed
+      );
+
       // Check if this is a new best WPM
       const newBestWPM = Math.max(currentStats.bestWPM, gameResult.wpm);
 
@@ -145,6 +151,7 @@ export const userStatsService = {
         "stats.overall.gamesPlayed": increment(1),
         "stats.overall.averageWPM": newAverageWPM,
         "stats.overall.bestWPM": newBestWPM,
+        "stats.overall.averageAccuracy": newAverageAccuracy,
         "stats.overall.totalWordsTyped": increment(gameResult.wordsTyped),
         "stats.overall.totalCharactersTyped": increment(
           gameResult.charactersTyped
@@ -208,6 +215,13 @@ export const userStatsService = {
         (totalWPM + gameResult.wpm) / newGamesPlayed
       );
 
+      // Calculate new average accuracy for ranked mode
+      const totalAccuracy =
+        currentRankedStats.averageAccuracy * currentRankedStats.gamesPlayed;
+      const newAverageAccuracy = Math.round(
+        (totalAccuracy + gameResult.accuracy) / newGamesPlayed
+      );
+
       // Check if this is a new best WPM
       const isNewBest = gameResult.wpm > currentRankedStats.bestWPM;
       const newBestWPM = isNewBest
@@ -219,6 +233,7 @@ export const userStatsService = {
         "stats.ranked.gamesPlayed": increment(1),
         "stats.ranked.averageWPM": newAverageWPM,
         "stats.ranked.bestWPM": newBestWPM,
+        "stats.ranked.averageAccuracy": newAverageAccuracy,
         "stats.ranked.totalWins": increment(gameResult.isWinner ? 1 : 0),
         "stats.ranked.totalLosses": increment(gameResult.isWinner ? 0 : 1),
         "stats.ranked.winRate": newWinRate,
