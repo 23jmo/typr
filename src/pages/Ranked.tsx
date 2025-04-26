@@ -268,7 +268,7 @@ const Ranked = () => {
 
       <div className="w-full max-w-4xl mx-auto px-4 md:px-8">
         {/* Match Stats Section */}
-        <div className="mb-16 flex justify-between items-center">
+        <div className="mb-8 flex justify-between items-center">
           <div className="flex items-center">
             <span className="text-xl uppercase tracking-wider text-[#d1d0c5] font-bold mr-3">
               ELO
@@ -358,6 +358,24 @@ const Ranked = () => {
           </motion.div>
         </div>
 
+        {/* Action Button - above leaderboard */}
+        <div className="flex justify-center w-full max-w-xs mx-auto mb-12">
+          <motion.button
+            onClick={handleFindMatch}
+            className="w-full py-3 text-xl font-bold tracking-wider rounded-lg shadow-xl transition-all duration-300 ease-out focus:outline-none bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-900 border-b-4 border-yellow-600 hover:border-yellow-500"
+            whileHover={{ 
+              scale: 1.03,
+              boxShadow: "0 10px 25px -5px rgba(245, 158, 11, 0.4)"
+            }}
+            whileTap={{ 
+              scale: 0.97,
+              boxShadow: "0 5px 10px -3px rgba(245, 158, 11, 0.4)"
+            }}
+          >
+            Play
+          </motion.button>
+        </div>
+
         {/* Leaderboard Section */}
         <div className="mb-12">
           <div className="flex items-center justify-between mb-4">
@@ -425,18 +443,6 @@ const Ranked = () => {
               </table>
             </div>
           )}
-        </div>
-
-        {/* Action Button - centered at bottom like Overwatch */}
-        <div className="flex justify-center w-full max-w-2xl mx-auto">
-          <motion.button
-            onClick={handleFindMatch}
-            className="w-full max-w-sm py-4 text-2xl font-bold uppercase tracking-wider rounded-lg shadow-lg transition-all duration-300 ease-in-out focus:outline-none bg-gradient-to-r from-yellow-500 to-yellow-400 hover:from-yellow-400 hover:to-yellow-300 text-slate-900"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Start
-          </motion.button>
         </div>
 
         {/* Error Message */}
