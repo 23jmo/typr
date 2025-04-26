@@ -1,5 +1,4 @@
 import React from "react";
-import { useUser } from "../contexts/UserContext";
 
 interface UserHeaderProps {
   username: string;
