@@ -22,7 +22,7 @@ interface LeaderboardUser {
 }
 
 interface LeaderboardData {
-  updatedAt: string;
+  updatedAt: string | { seconds: number; nanoseconds: number };
   topUsers: LeaderboardUser[];
 }
 
@@ -91,11 +91,23 @@ const Ranked = () => {
   }, []);
 
   // Format the updated date
-  const formatLastUpdated = (dateString: string) => {
+  const formatLastUpdated = (dateString: string | { seconds: number; nanoseconds: number }) => {
     if (!dateString) return "";
     
     try {
-      const date = new Date(dateString);
+      // Handle Firestore timestamp objects
+      let date: Date;
+      if (typeof dateString === 'object' && 'seconds' in dateString) {
+        date = new Date(dateString.seconds * 1000);
+      } else {
+        date = new Date(dateString);
+      }
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Recently";
+      }
+      
       return date.toLocaleDateString(undefined, { 
         month: 'short', 
         day: 'numeric',
