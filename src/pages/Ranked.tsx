@@ -3,12 +3,28 @@ import { rankedIcons } from "../types/ranks";
 import { useUser } from "../contexts/UserContext";
 import { useNavigate } from "react-router-dom";
 import { socket } from "../services/socket.ts";
-import { FaMedal, FaChartLine, FaPercentage } from "react-icons/fa"; // Icons for stats
+import { FaMedal, FaChartLine, FaPercentage, FaTrophy, FaSpinner } from "react-icons/fa"; // Added FaSpinner
 import { motion } from "framer-motion"; // For subtle animations
 import MatchmakingScreen from "../components/ranked/MatchmakingScreen"; // Import MatchmakingScreen
+import { leaderboardService } from "../services/firebase"; // Import leaderboard service
+import MedalIcon from "../assets/MedalIcon"; // Import our custom MedalIcon component
 
 // Define rank key type for type safety (copied from previous context if needed)
 type RankKey = keyof typeof rankedIcons;
+
+// Define leaderboard types
+interface LeaderboardUser {
+  uid: string;
+  username: string;
+  elo: number;
+  rank: string;
+  averageWPM: number;
+}
+
+interface LeaderboardData {
+  updatedAt: string;
+  topUsers: LeaderboardUser[];
+}
 
 const Ranked = () => {
   const { userData } = useUser();
@@ -18,6 +34,9 @@ const Ranked = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [matchmakingError, setMatchmakingError] = useState<string | null>(null);
   const [searchTime, setSearchTime] = useState(0);
+  // Leaderboard State
+  const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
 
   // Function to determine user's rank and progress (simplified, only need rank name and key)
   const getUserRank = () => {
@@ -53,6 +72,41 @@ const Ranked = () => {
     return Math.round((wins / total) * 100);
   };
   const winRate = calculateWinRate();
+
+  // Fetch leaderboard data
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        setLeaderboardLoading(true);
+        const data = await leaderboardService.getGlobalLeaderboard();
+        setLeaderboard(data as LeaderboardData);
+      } catch (error) {
+        console.error("Error fetching leaderboard:", error);
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    };
+    
+    fetchLeaderboard();
+  }, []);
+
+  // Format the updated date
+  const formatLastUpdated = (dateString: string) => {
+    if (!dateString) return "";
+    
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString(undefined, { 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return "Recently";
+    }
+  };
 
   // --- Start Matchmaking ---
   const handleFindMatch = () => {
@@ -290,6 +344,75 @@ const Ranked = () => {
               </div>
             </div>
           </motion.div>
+        </div>
+
+        {/* Leaderboard Section */}
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-[#d1d0c5] flex items-center">
+              <FaTrophy className="text-yellow-400 mr-2" /> Leaderboard
+            </h2>
+            <span className="text-sm text-[#646669]">
+              {leaderboard?.updatedAt ? `Updated: ${formatLastUpdated(leaderboard.updatedAt)}` : ''}
+            </span>
+          </div>
+          
+          {leaderboardLoading ? (
+            <div className="bg-[#272829] rounded-lg p-12 text-center flex justify-center items-center">
+              <FaSpinner className="text-[#d1d0c5] text-2xl animate-spin mr-3" />
+              <p className="text-[#d1d0c5]">Loading leaderboard...</p>
+            </div>
+          ) : (
+            <div className="bg-[#272829] rounded-lg overflow-hidden">
+              <table className="w-full table-auto">
+                <thead>
+                  <tr className="bg-[#1e1f20]">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">Rank</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">Player</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">ELO</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">Avg WPM</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#323437]">
+                  {leaderboard?.topUsers && leaderboard.topUsers.length > 0 ? (
+                    leaderboard.topUsers.map((user, index) => (
+                      <tr key={user.uid} className={`${user.uid === userData?.uid ? 'bg-[#2c2e31]' : ''}`}>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <MedalIcon position={index + 1} size={20} />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <span className={`font-medium ${user.uid === userData?.uid ? 'text-yellow-400' : 'text-white'}`}>
+                              {user.username || "Anonymous"}
+                              {user.uid === userData?.uid && (
+                                <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">
+                                  You
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                          <span className="text-[#e2b714]">{user.elo}</span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
+                          {user.averageWPM || 0}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-6 text-center text-[#646669]">
+                        No leaderboard data available
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Action Button - centered at bottom like Overwatch */}

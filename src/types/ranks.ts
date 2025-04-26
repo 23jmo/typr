@@ -1,5 +1,5 @@
 import React from 'react';
-import { MedalIcon } from '../assets';
+import { RankIcon } from '../assets';
 
 // Define rank keys type first
 export type RankKey = 'plastic' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'cherryMX';
@@ -41,7 +41,7 @@ export const rankColors: Record<RankKey, { primary: string; secondary: string; r
 // Medal renderer function for each rank
 export const getMedalIcon = (rankKey: RankKey, size: number = 40) => {
   const colors = rankColors[rankKey];
-  return React.createElement(MedalIcon, {
+  return React.createElement(RankIcon, {
     primaryColor: colors.primary,
     secondaryColor: colors.secondary,
     ribbonColor: colors.ribbon,
