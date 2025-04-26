@@ -12,6 +12,7 @@ import UserRankDisplay from "../components/UserRankDisplay";
 /**
  * Stats page for displaying user statistics
  * This includes overall stats, ranked stats, and performance data
+ * Fully responsive design with mobile optimizations
  */
 const Stats: React.FC = () => {
   const { userData, loading } = useUser();
@@ -20,7 +21,7 @@ const Stats: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#323437]">
         <Header />
-        <div className="container mx-auto">
+        <div className="container mx-auto px-4">
           <div className="flex justify-center items-center h-[calc(100vh-100px)]">
             <div className="text-[#d1d0c5] text-lg">Loading your stats...</div>
           </div>
@@ -33,7 +34,7 @@ const Stats: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#323437]">
         <Header />
-        <div className="container mx-auto">
+        <div className="container mx-auto px-4">
           <div className="flex justify-center items-center h-[calc(100vh-100px)]">
             <div className="text-[#d1d0c5] text-lg">
               Please log in to view your stats
@@ -134,7 +135,7 @@ const Stats: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#323437]">
       <Header />
-      <div className="container mx-auto px-4 pt-10 pb-24">
+      <div className="container mx-auto px-3 sm:px-4 pt-10 sm:pt-10 pb-16 sm:pb-24 overflow-x-hidden">
         {/* User info header */}
         <UserHeader 
           username={userData.username || "User"} 
@@ -143,7 +144,7 @@ const Stats: React.FC = () => {
         />
         
         {/* Stats Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {/* Average WPM */}
           <StatCard 
             title="Average WPM"
@@ -181,13 +182,13 @@ const Stats: React.FC = () => {
         </div>
         
         {/* Two Column Layout for Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
           {/* WPM Over Time */}
           <SectionWrapper 
             title="Performance Graph"
             subtitle="Your typing speed over time"
           >
-            <div className="h-[350px]">
+            <div className="h-[250px] sm:h-[350px]">
               <PerformanceGraph 
                 matches={recentMatches.map(match => ({
                   opponent: match.opponentName,
@@ -207,14 +208,14 @@ const Stats: React.FC = () => {
             title="Race Distribution" 
             subtitle="Distribution of your typing speeds across all races"
           >
-            <div className="h-[350px]">
+            <div className="h-[250px] sm:h-[350px]">
               <RaceDistribution wpmRanges={wpmDistribution} />
             </div>
           </SectionWrapper>
         </div>
         
         {/* Recent Races Table and Rank */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 mt-4 sm:mt-8">
           {/* Recent Races Table - Takes 2/3 of the grid */}
           <div className="lg:col-span-2">
             <SectionWrapper 

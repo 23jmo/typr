@@ -6,6 +6,7 @@ import RankIcon from "./RankIcon";
 /**
  * Displays the user's current rank with medal icon, ELO score, 
  * and progress bar to the next rank
+ * Responsive design for different screen sizes
  */
 const UserRankDisplay: React.FC = () => {
   // Get user data from context
@@ -73,22 +74,22 @@ const UserRankDisplay: React.FC = () => {
   };
 
   return (
-    <div className="bg-[#2c2e31] rounded-lg p-6">
-      <h2 className="text-xl font-bold text-[#d1d0c5] mb-2">Your Rank</h2>
-      <p className="text-[#646669] text-sm mb-6">Current standing and progress</p>
+    <div className="bg-[#2c2e31] rounded-lg p-3 sm:p-4 md:p-6">
+      <h2 className="text-lg sm:text-xl font-bold text-[#d1d0c5] mb-1 sm:mb-2">Your Rank</h2>
+      <p className="text-[#646669] text-xs sm:text-sm mb-3 sm:mb-4 md:mb-6">Current standing and progress</p>
 
-      <div className="flex items-center gap-4 mb-4">
-        <RankIcon rankKey={currentRank.rankKey} size={60} />
+      <div className="flex items-center gap-2 sm:gap-4 mb-2 sm:mb-4">
+        <RankIcon rankKey={currentRank.rankKey} size={40} className="sm:w-[60px] sm:h-[60px]" />
         <div>
-          <div className={`text-2xl font-bold ${getRankColor(currentRank.rankKey)}`}>
+          <div className={`text-xl sm:text-2xl font-bold ${getRankColor(currentRank.rankKey)}`}>
             {currentRank.name}
           </div>
-          <div className="text-[#d1d0c5]">{elo.toLocaleString()} ELO</div>
+          <div className="text-sm sm:text-base text-[#d1d0c5]">{elo.toLocaleString()} ELO</div>
         </div>
       </div>
       
       {/* Progress Bar */}
-      <div className="w-full bg-[#323437] h-3 rounded-full overflow-hidden mb-2">
+      <div className="w-full bg-[#323437] h-2 sm:h-3 rounded-full overflow-hidden mb-1 sm:mb-2">
         <div
           className={`${getProgressBarColor(currentRank.rankKey)} h-full rounded-full transition-all duration-300`}
           style={{ width: `${progressPercentage}%` }}
@@ -96,7 +97,7 @@ const UserRankDisplay: React.FC = () => {
       </div>
       
       {/* Progress information */}
-      <div className="flex justify-between items-center text-sm">
+      <div className="flex justify-between items-center text-xs sm:text-sm">
         <span className="text-[#646669]">
           {nextRank 
             ? `${progressPercentage}% to ${nextRank.name}` 
