@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaMedal, FaCrown, FaTrophy } from 'react-icons/fa';
+import { FaMedal, FaCrown } from 'react-icons/fa';
 
 interface MedalIconProps {
   position: number;
