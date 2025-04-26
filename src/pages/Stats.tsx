@@ -149,8 +149,6 @@ const Stats: React.FC = () => {
           <StatCard 
             title="Average WPM"
             value={userData.stats?.overall?.averageWPM || 0}
-            change="+2.5% from last month"
-            isPositive={true}
             icon={noteIcon}
           />
           
@@ -158,7 +156,6 @@ const Stats: React.FC = () => {
           <StatCard 
             title="Highest WPM"
             value={userData.stats?.overall?.bestWPM || 0}
-            additionalInfo="Achieved on May 12, 2023"
             icon={starIcon}
           />
           
@@ -166,8 +163,6 @@ const Stats: React.FC = () => {
           <StatCard 
             title="Accuracy"
             value={`${(userData.stats?.overall?.averageAccuracy || 0).toFixed(1)}%`}
-            change="+0.7% from last month"
-            isPositive={true}
             icon={checkIcon}
           />
           
@@ -175,8 +170,6 @@ const Stats: React.FC = () => {
           <StatCard 
             title="Total Races"
             value={userData.stats?.overall?.gamesPlayed || 0}
-            change="+24 races this month"
-            isPositive={true}
             icon={clockIcon}
           />
         </div>
