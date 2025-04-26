@@ -183,7 +183,10 @@ const Stats: React.FC = () => {
         {/* Two Column Layout for Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* WPM Over Time */}
-          <SectionWrapper title="WPM Over Time">
+          <SectionWrapper 
+            title="Performance Graph"
+            subtitle="Your typing speed over time"
+          >
             <div className="h-[350px]">
               <PerformanceGraph 
                 matches={recentMatches.map(match => ({
