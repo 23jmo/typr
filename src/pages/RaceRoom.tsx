@@ -276,7 +276,9 @@ const RaceRoom = () => {
 
       if (e.metaKey || e.ctrlKey || (e.altKey && e.key !== "Backspace")) return;
 
-      if (e.altKey && e.key === "Backspace") {
+      // Early return for backspace key to prevent double-handling with TypingPrompt component
+      if (e.key === "Backspace") {
+        e.preventDefault();
         return;
       }
 
@@ -351,56 +353,6 @@ const RaceRoom = () => {
             finalAccuracy: currentAccuracy
           });
         }
-      } else if (e.key === "Backspace") {
-        e.preventDefault();
-        if (userInput.length === 0) return;
-
-        // Play backspace sound
-        keyboardSoundService.playSound("backspace");
-
-        const deletedIndex = userInput.length - 1;
-        let currentCorrect = charStats.correct;
-        let currentIncorrect = charStats.incorrect;
-        let currentExtra = charStats.extra;
-
-        if (deletedIndex >= text.length) {
-          currentExtra = Math.max(0, currentExtra - 1);
-        } else if (userInput[deletedIndex] === text[deletedIndex]) {
-          currentCorrect = Math.max(0, currentCorrect - 1);
-        } else {
-          currentIncorrect = Math.max(0, currentIncorrect - 1);
-        }
-
-        const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
-        setCharStats(newCharStats);
-
-        setUserInput((prev) => {
-          const newInput = prev.slice(0, -1);
-          const progress = (newInput.length / text.length) * 100;
-          socket.emit("updateProgress", {
-            wpm,
-            accuracy,
-            progress: Math.max(0, progress),
-          });
-
-          // Update local player's progress in roomState
-          setRoomState(prevState => {
-            if (!prevState || !localUserId) return prevState;
-            return {
-              ...prevState,
-              players: {
-                ...prevState.players,
-                [localUserId]: {
-                  ...prevState.players[localUserId],
-                  progress: Math.max(0, progress),
-                  wpm
-                }
-              }
-            };
-          });
-
-          return newInput;
-        });
       } else if (e.key === "Enter") {
         // Play enter sound
         keyboardSoundService.playSound("enter");
