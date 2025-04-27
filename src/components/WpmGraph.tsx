@@ -34,14 +34,28 @@ const WpmGraph = ({ wpm, wpmHistory }: WpmGraphProps) => {
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current || points.length === 0) return
-    const rect = svgRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const closest = points.reduce((prev, curr) => {
-      const prevDist = Math.abs(prev.x - x)
-      const currDist = Math.abs(curr.x - x)
+    
+    const svg = svgRef.current
+    
+    // Get CTM (Current Transformation Matrix) to handle any transformations
+    const ctm = svg.getScreenCTM()
+    if (!ctm) return
+    
+    // Convert mouse coordinates to SVG coordinate space
+    const mousePoint = new DOMPoint(e.clientX, e.clientY)
+    const svgPoint = mousePoint.matrixTransform(ctm.inverse())
+    
+    // Find the closest point on the graph
+    if (svgPoint.x < padding || svgPoint.x > width - padding) return
+    
+    // Find closest point to cursor
+    const closestPoint = points.reduce((prev, curr) => {
+      const prevDist = Math.abs(prev.x - svgPoint.x)
+      const currDist = Math.abs(curr.x - svgPoint.x)
       return prevDist < currDist ? prev : curr
     }, points[0])
-    setHoveredPoint({ wpm: closest.wpm, time: closest.time })
+    
+    setHoveredPoint({ wpm: closestPoint.wpm, time: closestPoint.time })
   }
 
   return (
