@@ -1,4 +1,5 @@
 import { Player as PlayerData } from "../types";
+import { FaCircle, FaCheck, FaVoteYea, FaMinus } from "react-icons/fa";
 
 interface PlayerListProps {
   players: Record<string, PlayerData>;
@@ -20,10 +21,9 @@ const PlayerList = ({ players, localUserId, roomStatus, playerLimit }: PlayerLis
             key={player.id}
             className={`flex items-center space-x-2 p-1 rounded ${player.id === localUserId ? 'bg-[#3c3e41]' : ''}`}
           >
-            <span
-              className={`w-3 h-3 rounded-full ${
-                player.connected ? "bg-green-500" : "bg-red-500"
-              }`}
+            <FaCircle 
+              size={8}
+              className={player.connected ? "text-green-500" : "text-red-500"}
               title={player.connected ? 'Connected' : 'Disconnected'}
             />
             <span className="flex-1 truncate" title={player.name}>{player.name}</span>
@@ -41,11 +41,11 @@ const PlayerList = ({ players, localUserId, roomStatus, playerLimit }: PlayerLis
               </div>
             )}
             {player.finished && (
-              <span className="text-green-400" title="Finished">✓</span>
+              <FaCheck className="text-green-400" size={12} title="Finished" />
             )}
             {roomStatus === 'voting' && (
-              <span className="text-xs" title={player.vote ? `Voted for ${player.vote}` : 'Not voted'}>
-                {player.vote ? '🗳️' : '➖'}
+              <span title={player.vote ? `Voted for ${player.vote}` : 'Not voted'}>
+                {player.vote ? <FaVoteYea size={12} className="text-blue-300" /> : <FaMinus size={12} className="text-gray-500" />}
               </span>
             )}
             {(roomStatus === 'racing' || roomStatus === 'finished') && (
