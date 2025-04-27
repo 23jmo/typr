@@ -239,7 +239,7 @@ const FinishedScreen = ({
   const canPlayAgain = roomState.status === 'finished';
   const localPlayerWantsPlayAgain = (roomState.players[localUserId] as Player | undefined)?.wantsPlayAgain;
   return (
-    <div className="fixed inset-0 bg-[#1e1e1e] flex flex-col items-center justify-start p-4 pt-6 overflow-y-auto">
+    <div className="fixed inset-0 bg-transparent flex flex-col items-center justify-start p-4 mt-16 overflow-y-auto">
       <div className="bg-[#2a2a2a] rounded-xl shadow-xl p-4 md:p-6 max-w-3xl w-full mx-auto my-2 border border-[#3a3a3a]">
         <div className="text-center mb-4 md:mb-6">
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6 flex items-center justify-center gap-3 text-yellow-400">
