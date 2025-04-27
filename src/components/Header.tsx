@@ -1,28 +1,94 @@
 import { useNavigate } from "react-router-dom";
 import { authService } from "../services/firebase";
 import { useUser } from "../contexts/UserContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FaSignOutAlt, FaCog } from "react-icons/fa";
 
 const Header = () => {
   const navigate = useNavigate();
   const { userData } = useUser();
   const [scrolled, setScrolled] = useState(false);
+  const scrollableContainersRef = useRef<HTMLElement[]>([]);
 
-  // Add scroll event listener to create a dynamic header effect
+  // Function to check if any scrollable container has been scrolled
+  const checkScrollPosition = () => {
+    // Check window scroll first
+    if (window.scrollY > 10) {
+      setScrolled(true);
+      return;
+    }
+    
+    // Then check any scrollable containers
+    const isAnyContainerScrolled = scrollableContainersRef.current.some(
+      container => container.scrollTop > 10
+    );
+    
+    setScrolled(isAnyContainerScrolled);
+  };
+
+  // Setup scroll event listeners
   useEffect(() => {
-    const handleScroll = () => {
-      const isScrolled = window.scrollY > 10;
-      if (isScrolled !== scrolled) {
-        setScrolled(isScrolled);
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll);
+    // Add window scroll listener
+    window.addEventListener("scroll", checkScrollPosition);
+    
+    // Find all scrollable containers in the document
+    const scrollableContainers = Array.from(
+      document.querySelectorAll('.overflow-y-auto, .overflow-auto, [style*="overflow-y: auto"], [style*="overflow: auto"]')
+    ) as HTMLElement[];
+    
+    scrollableContainersRef.current = scrollableContainers;
+    
+    // Add scroll listeners to each container
+    scrollableContainers.forEach(container => {
+      container.addEventListener('scroll', checkScrollPosition);
+    });
+    
+    // Initial check
+    checkScrollPosition();
+    
+    // Cleanup
     return () => {
-      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("scroll", checkScrollPosition);
+      scrollableContainers.forEach(container => {
+        container.removeEventListener('scroll', checkScrollPosition);
+      });
     };
-  }, [scrolled]);
+  }, []); // Empty dependency array so this only runs once
+  
+  // Setup mutation observer to detect new scrollable containers dynamically
+  useEffect(() => {
+    // Create a MutationObserver to watch for newly added scrollable containers
+    const observer = new MutationObserver((mutations) => {
+      // Check for new scrollable containers
+      const newScrollableContainers = Array.from(
+        document.querySelectorAll('.overflow-y-auto, .overflow-auto, [style*="overflow-y: auto"], [style*="overflow: auto"]')
+      ) as HTMLElement[];
+      
+      // Filter out containers we're already watching
+      const newContainers = newScrollableContainers.filter(
+        container => !scrollableContainersRef.current.includes(container)
+      );
+      
+      // Add new containers to our ref
+      if (newContainers.length > 0) {
+        scrollableContainersRef.current = [...scrollableContainersRef.current, ...newContainers];
+        
+        // Add scroll listeners to new containers
+        newContainers.forEach(container => {
+          container.addEventListener('scroll', checkScrollPosition);
+        });
+      }
+    });
+    
+    // Start observing the entire document for changes
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true 
+    });
+    
+    // Cleanup
+    return () => observer.disconnect();
+  }, []);
 
   const handleLogout = async () => {
     try {
