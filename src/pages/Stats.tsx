@@ -135,7 +135,7 @@ const Stats: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#323437]">
       <Header />
-      <div className="container mx-auto px-3 sm:px-4 pt-10 sm:pt-10 pb-16 sm:pb-24 overflow-x-hidden">
+      <div className="container mx-auto px-3 sm:px-4 mt-6 sm:pt-10 pb-16 sm:pb-24 overflow-x-hidden">
         {/* User info header */}
         <UserHeader 
           username={userData.username || "User"} 
