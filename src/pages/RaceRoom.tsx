@@ -277,9 +277,9 @@ const RaceRoom = () => {
 
       if (e.metaKey || e.ctrlKey || (e.altKey && e.key !== "Backspace")) return;
 
-      // Early return for backspace key to prevent double-handling with TypingPrompt component
+      // For Backspace, let the TypingPrompt component handle it
+      // We'll rely on the onInputChange handler for both mobile and desktop
       if (e.key === "Backspace") {
-        e.preventDefault();
         return;
       }
 
