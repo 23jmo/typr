@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { GameData } from "../types";
 import { rankedIcons } from "../types/ranks";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { FaCrown } from "react-icons/fa";
 
 interface RaceLobbyProps {
   gameData: GameData;
@@ -28,22 +29,15 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
 }) => {
   // Calculate player count
   const playerCount = Object.keys(gameData.players).length;
-  const maxPlayers = gameData.playerLimit || 8;
+  const maxPlayers = gameData.playerLimit || 4;
   
-  // Count connected players
-  const connectedPlayers = Object.values(gameData.players).filter(
-    (player) => player.connected
-  ).length;
   
   // Check if current player is ready
   const isReady = gameData.players[userId]?.ready || false;
   
-  // Check if we have enough players to start
-  const hasEnoughPlayers = connectedPlayers >= 2;
-  
   // State for copy button text
-  const [copyButtonText, setCopyButtonText] = useState("Invite Friends");
-  const [showCopyIcon, setShowCopyIcon] = useState(true);
+  // const [copyLinkText, setCopyLinkText] = useState("Copy Invite Link");
+  const [lobbyCode] = useState(roomId?.toUpperCase() || "");
   
   // State to store enhanced player data with stats
   const [enhancedPlayers, setEnhancedPlayers] = useState<{
@@ -105,24 +99,35 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
     fetchPlayerData();
   }, [gameData.players, userId]);
   
+  // Function to handle copying lobby code
+  const handleCopyLobbyCode = () => {
+    navigator.clipboard.writeText(lobbyCode)
+      .then(() => {
+        // No visual feedback needed as the UI has a copy button
+      })
+      .catch(err => {
+        console.error('Failed to copy code: ', err);
+      });
+  };
+  
   // Function to handle copying invite link
+  /*
   const handleCopyInviteLink = () => {
     const inviteLink = `${window.location.origin}/custom/${roomId}`;
     navigator.clipboard.writeText(inviteLink)
       .then(() => {
-        setCopyButtonText("Link Copied!");
-        setShowCopyIcon(false);
+        setCopyLinkText("Link Copied!");
         
         // Reset button text after 2 seconds
         setTimeout(() => {
-          setCopyButtonText("Invite Friends");
-          setShowCopyIcon(true);
+          setCopyLinkText("Copy Invite Link");
         }, 2000);
       })
       .catch(err => {
         console.error('Failed to copy link: ', err);
       });
   };
+  */
   
   // Sort players by joinedAt timestamp to ensure consistent order
   const sortedPlayers = Object.entries(gameData.players).sort((a, b) => {
@@ -152,185 +157,188 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
     return getTimestamp(a[1]) - getTimestamp(b[1]);
   });
   
-  // Calculate race details
-  const calculateRaceDetails = () => {
-    // Calculate word count from the text
-    const wordCount = gameData.text ? gameData.text.trim().split(/\s+/).length : 0;
-    
-    // Determine race type (custom or ranked)
-    const raceType = "ranked" in gameData && (gameData as any).ranked ? "Ranked" : "Custom"; // Cast to any for ranked check if needed
-
-    // Use textSource and topic for display
-    const topic = gameData.textSource === 'topic'
-      ? (gameData.topic || 'N/A') // Use the topic name if source is topic
-      : gameData.textSource; // Display 'random' or 'custom'
-
-    return { wordCount, raceType, topic };
-  };
+  // Game settings from the screenshot - using defaults from the UI
+  /*
+  const textDifficulty = "Medium";
+  const raceLength = "Standard";
+  const privacy = "Private";
+  */
   
-  const raceDetails = calculateRaceDetails();
+  // Extract game settings from gameData
+  // Determine race type (custom or ranked)
+  const raceType = "ranked" in gameData && (gameData as any).ranked ? "Ranked" : "Custom";
+  
+  // Get topic or text source
+  const topic = gameData.textSource === 'topic'
+    ? (gameData.topic || 'N/A') // Use the topic name if source is topic
+    : (gameData.textSource || 'Random'); // Display 'random' or 'custom'
+  
+  // Get race length - word count from text
+  const wordCount = gameData.text ? gameData.text.trim().split(/\s+/).length : 0;
+  const raceLengthText = wordCount > 0 ? `${wordCount} words` : "Loading...";
   
   return (
-    <div className="w-full max-w-6xl mx-auto p-4 mt-24">
-      {/* Header */}
-      <div className="mb-8">
-        {/* Top row with title and action buttons */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-4">
-          <h1 className="text-5xl font-bold text-white mb-4 md:mb-0">Race Lobby</h1>
-        </div>
-        
-        {/* Bottom row with player count and lobby code */}
-        <div className="flex flex-wrap gap-4 mt-2">
-          <div className="bg-[#2c2e31] rounded-full px-6 py-2 flex items-center">
-            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <div className="w-full max-w-7xl mx-auto p-4 mt-20 flex flex-col lg:flex-row gap-6 text-[#d1d0c5]">
+      {/* Left column - Players */}
+      <div className="flex-1 bg-[#2c2e31] rounded-lg p-6 shadow-md">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold flex items-center text-[#d1d0c5]">
+            <svg className="w-6 h-6 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z" fill="currentColor" />
             </svg>
-            <span>{playerCount}/{maxPlayers} Players</span>
-          </div>
-          <div className="bg-[#2c2e31] rounded-full px-6 py-2">
-            <span className="text-gray-400 mr-2">Lobby Code:</span>
-            <span className="font-mono">{roomId}</span>
+            Players
+          </h2>
+          <div className="bg-[#323437] rounded-full px-4 py-1 text-[#d1d0c5]">
+            {playerCount}/{maxPlayers} Players
           </div>
         </div>
-      </div>
-      
-      {/* Player Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {sortedPlayers.map(([playerId, player]) => {
-          const enhancedPlayer = enhancedPlayers[playerId];
-          
-          return (
-            <div 
-              key={playerId}
-              className="bg-[#2c2e31] rounded-lg p-6"
-            >
-              <div className="flex items-center">
-                {/* Avatar */}
-                <div className="w-16 h-16 bg-[#1e1f21] rounded-full flex items-center justify-center text-2xl mr-4">
-                  {player.name?.charAt(0).toUpperCase() || "?"}
-                </div>
-                
-                {/* Player Info */}
-                <div className="flex-grow">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold flex items-center">
+        
+        <p className="text-[#a1a1a1] mb-6">All players must ready up before the race can begin</p>
+        
+        {/* Player list */}
+        <div className="space-y-4">
+          {sortedPlayers.map(([playerId, player]) => {
+            const enhancedPlayer = enhancedPlayers[playerId];
+            const isCurrentUser = playerId === userId;
+            const playerReady = player.ready || false;
+            
+            return (
+              <div key={playerId} className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-[#323437] rounded-full flex items-center justify-center text-xl mr-4 text-[#d1d0c5]">
+                    {player.name?.charAt(0).toUpperCase() || "?"}
+                  </div>
+                  
+                  <div>
+                    <div className="font-medium text-[#d1d0c5] flex items-center">
                       {player.name || "Anonymous"}
-                      {/* Show "YOU" tag for the current user */}
-                      {playerId === userId && (
-                        <span className="ml-2 text-sm bg-yellow-500 text-black font-bold px-2 py-0.5 rounded-full">
+                      {isCurrentUser && (
+                        <span className="ml-2 px-2 py-0.5 bg-[#323437] rounded-full text-xs text-[#d1d0c5]">
                           You
                         </span>
                       )}
-                    </h3>
-                    <div className={`px-3 py-1 rounded ${
-                      player.ready 
-                        ? "bg-gray-700 bg-opacity-80 text-white" 
-                        : "bg-gray-500 bg-opacity-40 text-gray-300"
-                    }`}>
-                      {player.ready ? "Ready" : "Not Ready"}
+                      {playerId === gameData.hostId && (
+                        <span className="ml-2 text-[#e2b714] flex items-center">
+                          <FaCrown size={14} />
+                        </span>
+                      )}
                     </div>
+                    {enhancedPlayer && (
+                      <div className="text-sm text-[#a1a1a1] flex items-center mt-1">
+                        <span className="flex items-center">
+                          {enhancedPlayer.rank.icon && (
+                            <img 
+                              src={enhancedPlayer.rank.icon} 
+                              alt={enhancedPlayer.rank.name} 
+                              className="w-4 h-4 mr-1" 
+                            />
+                          )}
+                          <span className="capitalize">{enhancedPlayer.rank.name}</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
+                </div>
+                
+                <div className={`px-4 py-1 rounded-full ${
+                  playerReady
+                    ? "bg-[#323437] text-[#d1d0c5]"
+                    : "bg-transparent text-[#646669]"
+                }`}>
+                  {playerReady ? "Ready" : "Not Ready"}
+                </div>
+              </div>
+            );
+          })}
+          
+          {/* Fill in empty slots if needed */}
+          {Array.from({ length: Math.max(0, maxPlayers - sortedPlayers.length) }).map((_, index) => (
+            <div key={`empty-${index}`} className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-12 h-12 bg-[#323437] rounded-full flex items-center justify-center text-xl mr-4 text-[#646669]">
+                  <span className="text-2xl">?</span>
+                </div>
+                
+                <div>
+                  <div className="font-medium text-[#646669]">Waiting for player...</div>
                 </div>
               </div>
               
-              {/* Stats and Rank - Below player info */}
-              <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-700">
-                {/* Rank on the left */}
-                {enhancedPlayer && (
-                  <div className="flex items-center">
-                    <span className="text-sm mr-2">{enhancedPlayer.rank.icon}</span>
-                    <span className="text-sm mr-1">{enhancedPlayer.rank.name}</span>
-                    <span className="text-sm text-gray-400">({enhancedPlayer.elo})</span>
-                  </div>
-                )}
-                
-                {/* Stats on the right */}
-                <div className="flex items-center">
-                  <div className="flex items-center mr-6">
-                    <span className="text-gray-400 text-sm mr-1">WPM:</span>
-                    <span className="text-sm">
-                      {enhancedPlayer ? Math.round(enhancedPlayer.wpm) : 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="text-gray-400 text-sm mr-1">Wins:</span>
-                    <span className="text-sm">
-                      {enhancedPlayer ? enhancedPlayer.wins : 0}
-                    </span>
-                  </div>
-                </div>
+              <div className="px-4 py-1 rounded-full text-[#646669]">
+                Empty
               </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
+        
+        {/* Bottom button */}
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={onToggleReady}
+            className={`px-10 py-3 rounded-lg font-medium transition-colors ${
+              isReady 
+                ? "bg-[#e2b714] text-black hover:bg-[#f3c724]"
+                : "bg-[#323437] text-[#d1d0c5] hover:bg-[#3c3e41]"
+            }`}
+          >
+            {isReady ? "Ready" : "Ready Up"}
+          </button>
+        </div>
       </div>
       
-      {/* Race Details */}
-      <div className="bg-[#2c2e31] rounded-lg p-6 mb-8">
-        <h3 className="text-xl mb-4 flex items-center">
-          <span className="mr-2">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2C6.5 2 2 6.5 2 12C2 17.5 6.5 22 12 22C17.5 22 22 17.5 22 12C22 6.5 17.5 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="currentColor"/>
-              <path d="M12.5 7H11V13L16.2 16.2L17 14.9L12.5 12.2V7Z" fill="currentColor"/>
-            </svg>
-          </span>
-          Race Details
-        </h3>
-        <div className="flex justify-between items-start">
-          <div className="flex flex-col items-start text-left">
-            <div className="text-gray-400 text-sm mb-1">Race Type</div>
-            <div className="text-xl">{raceDetails.raceType}</div>
+      {/* Right column - Invite & Settings */}
+      <div className="w-full lg:w-96 space-y-6">
+        {/* Invite Friends section */}
+        <div className="bg-[#2c2e31] rounded-lg p-6 shadow-md">
+          <h2 className="text-2xl font-bold mb-4 text-[#d1d0c5]">Invite Friends</h2>
+          <p className="text-[#a1a1a1] mb-4">Share the code or link with your friends</p>
+          
+          <div className="mb-4">
+            <p className="text-[#a1a1a1] mb-2">Lobby Code</p>
+            <div className="flex">
+              <div className="flex-1 bg-[#323437] rounded-l-lg p-3 font-mono text-center text-xl text-[#d1d0c5]">
+                {lobbyCode}
+              </div>
+              <button 
+                onClick={handleCopyLobbyCode}
+                className="bg-[#323437] rounded-r-lg p-3 flex items-center justify-center border-l border-[#3c3e41] text-[#d1d0c5] hover:text-[#e2b714] transition-colors"
+              >
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M8 5H6C4.89543 5 4 5.89543 4 7V19C4 20.1046 4.89543 21 6 21H16C17.1046 21 18 20.1046 18 19V17M8 5C8 6.10457 8.89543 7 10 7H12C13.1046 7 14 6.10457 14 5M8 5C8 3.89543 8.89543 3 10 3H12C13.1046 3 14 3.89543 14 5M14 5H16C17.1046 5 18 5.89543 18 7V10M20 14H10M10 14L13 11M10 14L13 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
-          <div className="flex flex-col items-center text-center">
-            <div className="text-gray-400 text-sm mb-1">Topic</div>
-            <div className="text-xl capitalize">{raceDetails.topic}</div>
-          </div>
-          <div className="flex flex-col items-end text-right">
-            <div className="text-gray-400 text-sm mb-1">Length</div>
-            <div className="text-xl">
-              {raceDetails.wordCount > 0 
-                ? `${raceDetails.wordCount} words` 
-                : "Text not loaded yet"}
+          
+        </div>
+        
+        {/* Game Settings section */}
+        <div className="bg-[#2c2e31] rounded-lg p-6 shadow-md">
+          <h2 className="text-2xl font-bold mb-6 text-[#d1d0c5]">Game Settings</h2>
+          
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-[#d1d0c5]">Race Type</p>
+              <p className="text-[#d1d0c5] font-medium">
+                {raceType}
+              </p>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <p className="text-[#d1d0c5]">Topic</p>
+              <p className="text-[#d1d0c5] font-medium capitalize">
+                {topic}
+              </p>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <p className="text-[#d1d0c5]">Race Length</p>
+              <p className="text-[#d1d0c5] font-medium">
+                {raceLengthText}
+              </p>
             </div>
           </div>
         </div>
-      </div>
-      
-      {/* Warning message when not enough players */}
-      {!hasEnoughPlayers && (
-        <div className="text-center mb-4 text-yellow-500">
-          <p>Waiting for more players to join. At least 2 players are needed to start the race.</p>
-        </div>
-      )}
-      
-      {/* Ready Button and Invite Friends */}
-      <div className="flex justify-center gap-4">
-        <button
-          onClick={onToggleReady}
-          disabled={!hasEnoughPlayers}
-          className={`px-8 py-3 rounded-lg text-xl transition-colors ${
-            isReady 
-              ? "bg-yellow-500 text-black" 
-              : hasEnoughPlayers 
-                ? "bg-yellow-500 text-black hover:bg-yellow-400" 
-                : "bg-gray-500 text-gray-300 cursor-not-allowed"
-          }`}
-        >
-          {isReady ? "Ready!" : hasEnoughPlayers ? "Ready Up" : "Waiting for players..."}
-        </button>
-        
-        <button 
-          onClick={handleCopyInviteLink}
-          className="bg-[#2c2e31] hover:bg-[#3c3e41] px-8 py-2 rounded-lg transition-colors flex items-center text-xl"
-        >
-          {!showCopyIcon && (
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 10-5.656-5.656l-1.102 1.101" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          )}
-          {copyButtonText}
-        </button>
       </div>
     </div>
   );

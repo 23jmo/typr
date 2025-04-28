@@ -1,28 +1,115 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { authService } from "../services/firebase";
 import { useUser } from "../contexts/UserContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FaSignOutAlt, FaCog } from "react-icons/fa";
 
 const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { userData } = useUser();
   const [scrolled, setScrolled] = useState(false);
+  const scrollableContainersRef = useRef<HTMLElement[]>([]);
 
-  // Add scroll event listener to create a dynamic header effect
+  // Function to check if any scrollable container has been scrolled
+  const checkScrollPosition = () => {
+    // Check window scroll first
+    if (window.scrollY > 10) {
+      setScrolled(true);
+      return;
+    }
+    
+    // Then check any scrollable containers
+    const isAnyContainerScrolled = scrollableContainersRef.current.some(
+      container => container.scrollTop > 10
+    );
+    
+    setScrolled(isAnyContainerScrolled);
+  };
+
+  // Reset scroll state and recheck containers when location changes
   useEffect(() => {
-    const handleScroll = () => {
-      const isScrolled = window.scrollY > 10;
-      if (isScrolled !== scrolled) {
-        setScrolled(isScrolled);
-      }
-    };
+    // Reset scrolled state on navigation
+    setScrolled(false);
+    
+    // Small delay to allow the DOM to update before checking for new containers
+    setTimeout(() => {
+      // Update the list of scrollable containers
+      const scrollableContainers = Array.from(
+        document.querySelectorAll('.overflow-y-auto, .overflow-auto, [style*="overflow-y: auto"], [style*="overflow: auto"]')
+      ) as HTMLElement[];
+      
+      // Update the ref and re-add listeners
+      scrollableContainersRef.current = scrollableContainers;
+      
+      // Check initial position
+      checkScrollPosition();
+    }, 50);
+  }, [location.pathname]);
 
-    window.addEventListener("scroll", handleScroll);
+  // Setup scroll event listeners
+  useEffect(() => {
+    // Add window scroll listener
+    window.addEventListener("scroll", checkScrollPosition);
+    
+    // Find all scrollable containers in the document
+    const scrollableContainers = Array.from(
+      document.querySelectorAll('.overflow-y-auto, .overflow-auto, [style*="overflow-y: auto"], [style*="overflow: auto"]')
+    ) as HTMLElement[];
+    
+    scrollableContainersRef.current = scrollableContainers;
+    
+    // Add scroll listeners to each container
+    scrollableContainers.forEach(container => {
+      container.addEventListener('scroll', checkScrollPosition);
+    });
+    
+    // Initial check
+    checkScrollPosition();
+    
+    // Cleanup
     return () => {
-      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("scroll", checkScrollPosition);
+      scrollableContainers.forEach(container => {
+        container.removeEventListener('scroll', checkScrollPosition);
+      });
     };
-  }, [scrolled]);
+  }, []); // Empty dependency array so this only runs once
+  
+  // Setup mutation observer to detect new scrollable containers dynamically
+  useEffect(() => {
+    // Create a MutationObserver to watch for newly added scrollable containers
+    const observer = new MutationObserver(() => {
+      // Check for new scrollable containers
+      const newScrollableContainers = Array.from(
+        document.querySelectorAll('.overflow-y-auto, .overflow-auto, [style*="overflow-y: auto"], [style*="overflow: auto"]')
+      ) as HTMLElement[];
+      
+      // Filter out containers we're already watching
+      const newContainers = newScrollableContainers.filter(
+        container => !scrollableContainersRef.current.includes(container)
+      );
+      
+      // Add new containers to our ref
+      if (newContainers.length > 0) {
+        scrollableContainersRef.current = [...scrollableContainersRef.current, ...newContainers];
+        
+        // Add scroll listeners to new containers
+        newContainers.forEach(container => {
+          container.addEventListener('scroll', checkScrollPosition);
+        });
+      }
+    });
+    
+    // Start observing the entire document for changes
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true 
+    });
+    
+    // Cleanup
+    return () => observer.disconnect();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -31,6 +118,19 @@ const Header = () => {
     } catch (error) {
       console.error("Error signing out:", error);
     }
+  };
+
+  // Custom navigation function that scrolls to top after navigation
+  const navigateAndScrollTop = (path: string) => {
+    navigate(path);
+    
+    // Reset window scroll
+    window.scrollTo(0, 0);
+    
+    // Reset scroll on any scrollable containers
+    scrollableContainersRef.current.forEach(container => {
+      container.scrollTop = 0;
+    });
   };
 
   return (
@@ -45,7 +145,7 @@ const Header = () => {
         {/* Logo - Left */}
         <div>
           <h1
-            onClick={() => navigate("/")}
+            onClick={() => navigateAndScrollTop("/")}
             className="cursor-pointer text-2xl font-bold text-[#e2b714] hover:text-[#f3c82f] transition-colors hover:scale-105 transform duration-200 text-shadow"
           >
             Typr
@@ -56,31 +156,31 @@ const Header = () => {
         <div className="absolute left-1/2 transform -translate-x-1/2 z-10">
           <nav className="hidden md:flex items-center gap-4">
             <button 
-              onClick={() => navigate("/")} 
+              onClick={() => navigateAndScrollTop("/")} 
               className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Home
             </button>
             <button 
-              onClick={() => navigate("/ranked")} 
+              onClick={() => navigateAndScrollTop("/ranked")} 
               className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Ranked
             </button>
             <button 
-              onClick={() => navigate("/custom")} 
+              onClick={() => navigateAndScrollTop("/custom")} 
               className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Custom
             </button>
             <button 
-              onClick={() => navigate("/solo")} 
+              onClick={() => navigateAndScrollTop("/solo")} 
               className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Solo
             </button>
             <button 
-              onClick={() => navigate("/stats")} 
+              onClick={() => navigateAndScrollTop("/stats")} 
               className="px-3 py-1.5 text-sm text-white hover:text-white transition-colors rounded-full hover:bg-white/5 text-shadow focus:outline-none focus:ring-0 focus-visible:ring-0"
             >
               Stats
@@ -92,7 +192,7 @@ const Header = () => {
         <div className="flex items-center gap-4">
           {/* Settings Button */}
           <button
-            onClick={() => navigate("/settings")}
+            onClick={() => navigateAndScrollTop("/settings")}
             className="px-3 py-1.5 text-sm text-[#d1d0c5] hover:text-white transition-all rounded-full hover:bg-white/10 hover:shadow-glow text-shadow flex items-center gap-1.5"
             title="Settings"
           >
@@ -130,10 +230,10 @@ const Header = () => {
                 {userData?.username || userData?.email}
               </div>
               <div className="px-4 py-2 text-sm text-[#d1d0c5] cursor-pointer hover:text-white hover:bg-white/10 transition-colors">
-                <button onClick={() => navigate("/stats")} className="w-full text-left">Stats</button>
+                <button onClick={() => navigateAndScrollTop("/stats")} className="w-full text-left">Stats</button>
               </div>
               <div className="px-4 py-2 text-sm text-[#d1d0c5] cursor-pointer hover:text-white hover:bg-white/10 transition-colors">
-                <button onClick={() => navigate("/settings")} className="w-full text-left">Settings</button>
+                <button onClick={() => navigateAndScrollTop("/settings")} className="w-full text-left">Settings</button>
               </div>
             </div>
           </div>

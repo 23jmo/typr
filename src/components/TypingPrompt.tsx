@@ -90,6 +90,44 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
     }
   }, [isFinished, isMobile]);
 
+  // Add handlers for tab visibility change and window focus to handle returning to the race after switching tabs
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isFinished) {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus();
+            
+            // Special handling for iOS devices
+            if (isMobile && /iPad|iPhone|iPod/i.test(navigator.userAgent) && !(window as any).MSStream) {
+              inputRef.current.blur();
+              inputRef.current.focus();
+            }
+          }
+        }, 100);
+      }
+    };
+    
+    const handleWindowFocus = () => {
+      if (!isFinished && inputRef.current) {
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
+        }, 100);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [isFinished, isMobile]);
+
   // Handle input changes from the hidden field
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (isFinished) return;
