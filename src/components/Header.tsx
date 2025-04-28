@@ -10,6 +10,9 @@ const Header = () => {
   const { userData } = useUser();
   const [scrolled, setScrolled] = useState(false);
   const scrollableContainersRef = useRef<HTMLElement[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
 
   // Function to check if any scrollable container has been scrolled
   const checkScrollPosition = () => {
@@ -123,6 +126,7 @@ const Header = () => {
   // Custom navigation function that scrolls to top after navigation
   const navigateAndScrollTop = (path: string) => {
     navigate(path);
+    setIsDropdownOpen(false);
     
     // Reset window scroll
     window.scrollTo(0, 0);
@@ -132,6 +136,25 @@ const Header = () => {
       container.scrollTop = 0;
     });
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        profileButtonRef.current &&
+        !profileButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   return (
     <header 
@@ -208,8 +231,12 @@ const Header = () => {
             <span className="hidden md:inline">Logout</span>
           </button>
 
-          <div className="relative group">
-            <button className="w-9 h-9 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#e2b714] transition-all duration-200 hover:ring-2 hover:ring-[#e2b714]/70 hover:scale-105">
+          <div className="relative">
+            <button 
+              ref={profileButtonRef}
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="w-9 h-9 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#e2b714] transition-all duration-200 hover:ring-2 hover:ring-[#e2b714]/70 hover:scale-105"
+            >
               {userData?.photoURL ? (
                 <img
                   src={userData.photoURL}
@@ -225,7 +252,14 @@ const Header = () => {
               )}
             </button>
 
-            <div className="absolute right-0 mt-2 w-48 py-2 bg-black/80 backdrop-blur-md rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-1">
+            <div 
+              ref={dropdownRef}
+              className={`absolute right-0 mt-2 w-48 py-2 bg-black/80 backdrop-blur-md rounded-lg shadow-xl transition-all duration-200 transform ${
+                isDropdownOpen 
+                  ? 'opacity-100 visible translate-y-0' 
+                  : 'opacity-0 invisible translate-y-1'
+              }`}
+            >
               <div className="px-4 py-2 text-sm text-[#d1d0c5]">
                 {userData?.username || userData?.email}
               </div>
