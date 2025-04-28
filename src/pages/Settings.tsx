@@ -29,20 +29,8 @@ const Settings = () => {
   return (
     <div className="min-h-screen bg-[#323437] text-[#d1d0c5] p-4 pt-16 md:pt-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center mb-8">
-          <button
-            onClick={() => navigate(-1)}
-            className="mr-4 text-[#d1d0c5] hover:text-[#e2b714] transition-colors"
-            aria-label="Go back"
-          >
-            <FaArrowLeft size={20} />
-          </button>
-          <h1 className="text-2xl font-bold">Settings</h1>
-        </div>
-
         {/* Settings Layout */}
-        <div className="flex flex-col md:flex-row gap-6">
+        <div className="flex flex-col md:flex-row gap-6 mt-8 md:mt-20">
           {/* Sidebar */}
           <div className="w-full md:w-64 shrink-0">
             <div className="bg-[#2c2e31] rounded-lg overflow-hidden">
@@ -137,7 +125,7 @@ const Settings = () => {
                     skills against others or practice on your own.
                   </p>
                   <p className="text-[#a1a1a1]">
-                    This app was created by Alex Qi and Johnathan Mo, students at Columbia University.
+                    This app was created by Alex Qi and Johnathan Mo, students at Columbia University. Contact us at <a href="mailto:playtypr@gmail.com" className="text-[#e2b714] hover:text-[#a1a1a1]">playtypr@gmail.com</a> for feedback or feature requests.
                   </p>
                 </div>
               </div>
