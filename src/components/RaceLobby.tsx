@@ -31,20 +31,13 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
   const playerCount = Object.keys(gameData.players).length;
   const maxPlayers = gameData.playerLimit || 4;
   
-  // Count connected players
-  const connectedPlayers = Object.values(gameData.players).filter(
-    (player) => player.connected
-  ).length;
   
   // Check if current player is ready
   const isReady = gameData.players[userId]?.ready || false;
   
-  // Check if we have enough players to start
-  const hasEnoughPlayers = connectedPlayers >= 2;
-  
   // State for copy button text
-  const [copyLinkText, setCopyLinkText] = useState("Copy Invite Link");
-  const [lobbyCode, setLobbyCode] = useState(roomId?.toUpperCase() || "");
+  // const [copyLinkText, setCopyLinkText] = useState("Copy Invite Link");
+  const [lobbyCode] = useState(roomId?.toUpperCase() || "");
   
   // State to store enhanced player data with stats
   const [enhancedPlayers, setEnhancedPlayers] = useState<{
@@ -118,6 +111,7 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
   };
   
   // Function to handle copying invite link
+  /*
   const handleCopyInviteLink = () => {
     const inviteLink = `${window.location.origin}/custom/${roomId}`;
     navigator.clipboard.writeText(inviteLink)
@@ -133,6 +127,7 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
         console.error('Failed to copy link: ', err);
       });
   };
+  */
   
   // Sort players by joinedAt timestamp to ensure consistent order
   const sortedPlayers = Object.entries(gameData.players).sort((a, b) => {
@@ -163,9 +158,11 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
   });
   
   // Game settings from the screenshot - using defaults from the UI
+  /*
   const textDifficulty = "Medium";
   const raceLength = "Standard";
   const privacy = "Private";
+  */
   
   // Extract game settings from gameData
   // Determine race type (custom or ranked)
@@ -200,7 +197,7 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
         
         {/* Player list */}
         <div className="space-y-4">
-          {sortedPlayers.map(([playerId, player], index) => {
+          {sortedPlayers.map(([playerId, player]) => {
             const enhancedPlayer = enhancedPlayers[playerId];
             const isCurrentUser = playerId === userId;
             const playerReady = player.ready || false;

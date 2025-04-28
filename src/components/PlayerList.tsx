@@ -37,7 +37,7 @@ const PlayerList = ({ players, localUserId, roomStatus, playerLimit }: PlayerLis
       }}
       dragHandleClassName="drag-handle"
       bounds="window"
-      onDragStop={(e, d) => {
+      onDragStop={(_, d) => {
         setPosition({ x: d.x, y: d.y });
       }}
       enableResizing={false}
