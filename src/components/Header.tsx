@@ -79,7 +79,7 @@ const Header = () => {
   // Setup mutation observer to detect new scrollable containers dynamically
   useEffect(() => {
     // Create a MutationObserver to watch for newly added scrollable containers
-    const observer = new MutationObserver((mutations) => {
+    const observer = new MutationObserver(() => {
       // Check for new scrollable containers
       const newScrollableContainers = Array.from(
         document.querySelectorAll('.overflow-y-auto, .overflow-auto, [style*="overflow-y: auto"], [style*="overflow: auto"]')
