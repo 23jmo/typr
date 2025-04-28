@@ -3,7 +3,13 @@ import { rankedIcons } from "../types/ranks";
 import { useUser } from "../contexts/UserContext";
 import { useNavigate } from "react-router-dom";
 import { socket } from "../services/socket.ts";
-import { FaMedal, FaChartLine, FaPercentage, FaTrophy, FaSpinner } from "react-icons/fa"; // Added FaSpinner
+import {
+  FaMedal,
+  FaChartLine,
+  FaPercentage,
+  FaTrophy,
+  FaSpinner,
+} from "react-icons/fa"; // Added FaSpinner
 import { motion } from "framer-motion"; // For subtle animations
 import MatchmakingScreen from "../components/ranked/MatchmakingScreen"; // Import MatchmakingScreen
 import { leaderboardService } from "../services/firebase"; // Import leaderboard service
@@ -86,18 +92,20 @@ const Ranked = () => {
         setLeaderboardLoading(false);
       }
     };
-    
+
     fetchLeaderboard();
   }, []);
 
   // Format the updated date
-  const formatLastUpdated = (dateString: string | { seconds: number; nanoseconds: number }) => {
+  const formatLastUpdated = (
+    dateString: string | { seconds: number; nanoseconds: number }
+  ) => {
     if (!dateString) return "";
-    
+
     try {
       // Handle Firestore timestamp objects
       let date: Date;
-      if (typeof dateString === 'object' && 'seconds' in dateString) {
+      if (typeof dateString === "object" && "seconds" in dateString) {
         date = new Date(dateString.seconds * 1000);
       } else {
         date = new Date(dateString);
@@ -107,12 +115,12 @@ const Ranked = () => {
       if (isNaN(date.getTime())) {
         return "Recently";
       }
-      
-      return date.toLocaleDateString(undefined, { 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+
+      return date.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
     } catch (e) {
       console.error("Error formatting date:", e);
@@ -137,7 +145,7 @@ const Ranked = () => {
       socket.connect(); // Try to connect if disconnected
       return;
     }
-    
+
     console.log("Initiating findMatch...");
     setMatchmakingError(null);
     setIsSearching(true); // Show MatchmakingScreen
@@ -145,7 +153,7 @@ const Ranked = () => {
 
     // Start tracking search time
     const timeInterval = setInterval(() => {
-      setSearchTime(prev => prev + 1);
+      setSearchTime((prev) => prev + 1);
     }, 1000);
 
     // Emit socket event to find match
@@ -245,10 +253,10 @@ const Ranked = () => {
   if (isSearching) {
     return (
       <div className="min-h-screen bg-[#323437] text-white">
-        <MatchmakingScreen 
-          searchTime={searchTime} 
-          onCancel={handleCancelSearch} 
-          error={matchmakingError} 
+        <MatchmakingScreen
+          searchTime={searchTime}
+          onCancel={handleCancelSearch}
+          error={matchmakingError}
         />
       </div>
     );
@@ -303,7 +311,19 @@ const Ranked = () => {
               </span>
               <div className="mt-4 pt-2 border-t border-[#444444] w-full text-center">
                 <span className="text-sm text-[#d1d0c5]">
-                  +{userData?.stats?.ranked?.gamesPlayed || 0} Games
+                  {Math.ceil(
+                    (rankedIcons[userRank.rankKey].maxElo - userElo) / 20
+                  ) || 0}{" "}
+                  Wins until{" "}
+                  {userRank.rankName === "cherryMX"
+                    ? "max rank"
+                    : rankedIcons[
+                        (Object.keys(rankedIcons).find(
+                          (key) =>
+                            rankedIcons[key as RankKey].minElo >
+                            rankedIcons[userRank.rankKey].maxElo
+                        ) || "bronze") as RankKey
+                      ].name || "next rank"}
                 </span>
               </div>
             </div>
@@ -363,13 +383,13 @@ const Ranked = () => {
           <motion.button
             onClick={handleFindMatch}
             className="w-full py-3 text-xl font-bold tracking-wider rounded-lg shadow-xl transition-all duration-300 ease-out focus:outline-none bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-900 border-b-4 border-yellow-600 hover:border-yellow-500"
-            whileHover={{ 
+            whileHover={{
               scale: 1.03,
-              boxShadow: "0 10px 25px -5px rgba(245, 158, 11, 0.4)"
+              boxShadow: "0 10px 25px -5px rgba(245, 158, 11, 0.4)",
             }}
-            whileTap={{ 
+            whileTap={{
               scale: 0.97,
-              boxShadow: "0 5px 10px -3px rgba(245, 158, 11, 0.4)"
+              boxShadow: "0 5px 10px -3px rgba(245, 158, 11, 0.4)",
             }}
           >
             Play
@@ -383,10 +403,12 @@ const Ranked = () => {
               <FaTrophy className="text-yellow-400 mr-2" /> Leaderboard
             </h2>
             <span className="text-sm text-[#646669]">
-              {leaderboard?.updatedAt ? `Updated: ${formatLastUpdated(leaderboard.updatedAt)}` : ''}
+              {leaderboard?.updatedAt
+                ? `Updated: ${formatLastUpdated(leaderboard.updatedAt)}`
+                : ""}
             </span>
           </div>
-          
+
           {leaderboardLoading ? (
             <div className="bg-[#272829] rounded-lg p-12 text-center flex justify-center items-center">
               <FaSpinner className="text-[#d1d0c5] text-2xl animate-spin mr-3" />
@@ -397,24 +419,46 @@ const Ranked = () => {
               <table className="w-full table-auto">
                 <thead>
                   <tr className="bg-[#1e1f20]">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">Rank</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">Player</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">ELO</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">Avg WPM</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">
+                      Rank
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">
+                      Player
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">
+                      ELO
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-[#d1d0c5] uppercase tracking-wider">
+                      Avg WPM
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#323437]">
                   {leaderboard?.topUsers && leaderboard.topUsers.length > 0 ? (
                     leaderboard.topUsers.map((user, index) => (
-                      <tr key={user.uid} className={`${user.uid === userData?.uid ? 'bg-[#2c2e31]' : ''}`}>
+                      <tr
+                        key={user.uid}
+                        className={`${
+                          user.uid === userData?.uid ? "bg-[#2c2e31]" : ""
+                        }`}
+                      >
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center">
-                            <MedalIcon position={index + 1} size={20} />
+                            <MedalIcon
+                              position={index + 1}
+                              size={20}
+                            />
                           </div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center">
-                            <span className={`font-medium ${user.uid === userData?.uid ? 'text-yellow-400' : 'text-white'}`}>
+                            <span
+                              className={`font-medium ${
+                                user.uid === userData?.uid
+                                  ? "text-yellow-400"
+                                  : "text-white"
+                              }`}
+                            >
                               {user.username || "Anonymous"}
                               {user.uid === userData?.uid && (
                                 <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">
@@ -434,7 +478,10 @@ const Ranked = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-4 py-6 text-center text-[#646669]">
+                      <td
+                        colSpan={4}
+                        className="px-4 py-6 text-center text-[#646669]"
+                      >
                         No leaderboard data available
                       </td>
                     </tr>
