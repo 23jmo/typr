@@ -235,8 +235,7 @@ function getTopicFallbackText(topic: string): string {
 
   // Get fallback texts for the specified topic, or use a default if not found
   const topicTexts = fallbackTexts[topic.toLowerCase()] || [
-    "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!",
-    "She sells seashells by the seashore. The shells she sells are surely seashells. So if she sells shells on the seashore, I'm sure she sells seashore shells.",
+    "Error generating text! Fallback text"
   ];
 
   // Return a random text from the available options for this topic
