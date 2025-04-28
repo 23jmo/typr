@@ -125,7 +125,7 @@ const Settings = () => {
                     skills against others or practice on your own.
                   </p>
                   <p className="text-[#a1a1a1]">
-                    This app was created by Alex Qi and Johnathan Mo, students at Columbia University.
+                    This app was created by Alex Qi and Johnathan Mo, students at Columbia University. Contact us at <a href="mailto:playtypr@gmail.com" className="text-[#e2b714] hover:text-[#a1a1a1]">playtypr@gmail.com</a> for feedback or feature requests.
                   </p>
                 </div>
               </div>
