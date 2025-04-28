@@ -226,6 +226,20 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
                         </span>
                       )}
                     </div>
+                    {enhancedPlayer && (
+                      <div className="text-sm text-[#a1a1a1] flex items-center mt-1">
+                        <span className="flex items-center">
+                          {enhancedPlayer.rank.icon && (
+                            <img 
+                              src={enhancedPlayer.rank.icon} 
+                              alt={enhancedPlayer.rank.name} 
+                              className="w-4 h-4 mr-1" 
+                            />
+                          )}
+                          <span className="capitalize">{enhancedPlayer.rank.name}</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 
