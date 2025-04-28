@@ -216,6 +216,11 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
                     <div className="font-medium text-[#d1d0c5] flex items-center">
                       {player.name || "Anonymous"}
                       {isCurrentUser && (
+                        <span className="ml-2 px-2 py-0.5 bg-[#323437] rounded-full text-xs text-[#d1d0c5]">
+                          You
+                        </span>
+                      )}
+                      {playerId === gameData.hostId && (
                         <span className="ml-2 text-[#e2b714] flex items-center">
                           <FaCrown size={14} />
                         </span>
