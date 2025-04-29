@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import KeyboardSoundSettings from '../components/KeyboardSoundSettings';
-import { FaArrowLeft, FaKeyboard, FaUser, FaInfoCircle, FaTrash } from 'react-icons/fa';
+import { FaKeyboard, FaUser, FaInfoCircle, FaTrash } from 'react-icons/fa';
 import { userService } from '../services/firebase';
 
 const Settings = () => {

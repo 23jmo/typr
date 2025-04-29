@@ -277,12 +277,6 @@ const RaceRoom = () => {
 
       if (e.metaKey || e.ctrlKey || (e.altKey && e.key !== "Backspace")) return;
 
-      // For Backspace, let the TypingPrompt component handle it
-      // We'll rely on the onInputChange handler for both mobile and desktop
-      if (e.key === "Backspace") {
-        return;
-      }
-
       if (e.key.length === 1) {
         e.preventDefault();
         const newInput = userInput + e.key;
