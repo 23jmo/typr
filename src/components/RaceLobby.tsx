@@ -36,7 +36,6 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
   const isReady = gameData.players[userId]?.ready || false;
   
   // State for copy button text
-  const [copyLinkText, setCopyLinkText] = useState("Copy Invite Link");
   const [lobbyCode] = useState(roomId?.toUpperCase() || "");
   const [isCodeCopied, setIsCodeCopied] = useState(false); // State for copy animation
   
