@@ -44,6 +44,8 @@ const allowedOrigins = [
   "https://typr-production.up.railway.app",
   "https://typr-frontend-production.up.railway.app",
   "https://playtypr.com",
+  "http://10.207.63.47:5173", // Added new origin for local testing
+  "http://10.207.111.250:5173",
   process.env.FRONTEND_URL,
   process.env.RAILWAY_STATIC_URL  // Add this for the frontend Railway URL
 ].filter((origin): origin is string => Boolean(origin));
