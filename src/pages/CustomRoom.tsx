@@ -306,7 +306,8 @@ const CustomRoom = () => {
     selectedType: "random" | "topic" | "custom"; 
     onSelect: (type: "random" | "topic" | "custom") => void;
   }) => (
-    <div className="grid grid-cols-3 gap-4 mb-4">
+    // Apply flex-col by default and grid on sm screens and up
+    <div className="flex flex-col sm:grid sm:grid-cols-3 gap-4 mb-4">
       {/* Random Text Box */}
       <div 
         className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${
