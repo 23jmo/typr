@@ -6,7 +6,7 @@ const Home = () => {
   const navigate = useNavigate();
   
   return (
-    <div className="flex w-full h-[100vh] bg-gray-900 flex-col md:flex-row overflow-hidden">
+    <div className="flex w-full h-screen bg-gray-900 flex-col md:flex-row overflow-hidden">
       <GameModeCard
         title="Custom Game"
         description="Play with friends using custom settings and create your own typing challenges"

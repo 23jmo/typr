@@ -284,7 +284,7 @@ const Ranked = () => {
         </div>
 
         {/* Role Cards Row - styled like Overwatch hexagon cards */}
-        <div className="flex justify-center gap-4 mb-12">
+        <div className="hidden md:flex justify-center gap-4 mb-12">
           {/* Rank Card */}
           <motion.div
             className="relative flex-1"
@@ -382,7 +382,7 @@ const Ranked = () => {
             <h2 className="text-2xl font-bold text-[#d1d0c5] flex items-center">
               <FaTrophy className="text-yellow-400 mr-2" /> Leaderboard
             </h2>
-            <span className="text-sm text-[#646669]">
+            <span className="hidden md:inline text-sm text-[#646669]">
               {leaderboard?.updatedAt ? `Updated: ${formatLastUpdated(leaderboard.updatedAt)}` : ''}
             </span>
           </div>

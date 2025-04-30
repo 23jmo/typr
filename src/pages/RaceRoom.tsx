@@ -576,7 +576,7 @@ const RaceRoom = () => {
   // =========================================
   return (
     <div className="flex flex-col items-center min-h-screen p-4 bg-[#323437] text-[#d1d0c5]">
-      {roomState && (
+      {!isMobile && roomState && (
         <PlayerList 
           players={roomState.players}
           localUserId={localUserId}
