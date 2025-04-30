@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { GameData } from "../types";
 import { rankedIcons } from "../types/ranks";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
-import { FaCrown, FaCheckCircle, FaClock, FaUserSlash } from "react-icons/fa";
+import { FaCrown, FaCheckCircle, FaClock, FaUserSlash, FaCheck } from "react-icons/fa";
 
 interface RaceLobbyProps {
   gameData: GameData;
@@ -36,8 +36,9 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
   const isReady = gameData.players[userId]?.ready || false;
   
   // State for copy button text
-  // const [copyLinkText, setCopyLinkText] = useState("Copy Invite Link");
+  const [copyLinkText, setCopyLinkText] = useState("Copy Invite Link");
   const [lobbyCode] = useState(roomId?.toUpperCase() || "");
+  const [isCodeCopied, setIsCodeCopied] = useState(false); // State for copy animation
   
   // State to store enhanced player data with stats
   const [enhancedPlayers, setEnhancedPlayers] = useState<{
@@ -101,33 +102,66 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
   
   // Function to handle copying lobby code
   const handleCopyLobbyCode = () => {
-    navigator.clipboard.writeText(lobbyCode)
-      .then(() => {
-        // No visual feedback needed as the UI has a copy button
-      })
-      .catch(err => {
-        console.error('Failed to copy code: ', err);
-      });
+    // Try the modern Clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(lobbyCode)
+        .then(() => {
+          setIsCodeCopied(true); // Trigger checkmark animation
+          // Reset icon after 1.5 seconds
+          setTimeout(() => {
+            setIsCodeCopied(false);
+          }, 1500);
+        })
+        .catch(err => {
+          console.error('Failed to copy code using Clipboard API: ', err);
+          // If Clipboard API fails, try the fallback
+          copyUsingExecCommand();
+        });
+    } else {
+      // If Clipboard API is not available, use the fallback directly
+      copyUsingExecCommand();
+    }
   };
-  
-  // Function to handle copying invite link
-  /*
-  const handleCopyInviteLink = () => {
-    const inviteLink = `${window.location.origin}/custom/${roomId}`;
-    navigator.clipboard.writeText(inviteLink)
-      .then(() => {
-        setCopyLinkText("Link Copied!");
-        
-        // Reset button text after 2 seconds
+
+  // Fallback function using document.execCommand('copy')
+  const copyUsingExecCommand = () => {
+    const textArea = document.createElement("textarea");
+    textArea.value = lobbyCode;
+
+    // Prevent scrolling to bottom of page in MS Edge.
+    textArea.style.position = "fixed";
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
+
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        setIsCodeCopied(true); // Trigger checkmark animation
         setTimeout(() => {
-          setCopyLinkText("Copy Invite Link");
-        }, 2000);
-      })
-      .catch(err => {
-        console.error('Failed to copy link: ', err);
-      });
+          setIsCodeCopied(false);
+        }, 1500); // Reset icon after 1.5 seconds
+      } else {
+         console.error('Fallback: Failed to copy code using execCommand.');
+         // Optionally, display an error message to the user here
+      }
+    } catch (err) {
+      console.error('Fallback: Error copying code using execCommand:', err);
+      // Optionally, display an error message to the user here
+    }
+
+    document.body.removeChild(textArea);
   };
-  */
   
   // Sort players by joinedAt timestamp to ensure consistent order
   const sortedPlayers = Object.entries(gameData.players).sort((a, b) => {
@@ -316,11 +350,22 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
               </div>
               <button 
                 onClick={handleCopyLobbyCode}
-                className="bg-[#323437] rounded-r-lg p-3 flex items-center justify-center border-l border-[#3c3e41] text-[#d1d0c5] hover:text-[#e2b714] transition-colors"
+                className="relative bg-[#323437] rounded-r-lg p-3 flex items-center justify-center border-l border-[#3c3e41] text-[#d1d0c5] hover:text-[#e2b714] transition-colors w-12"
+                title={isCodeCopied ? "Copied!" : "Copy Lobby Code"}
               >
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 5H6C4.89543 5 4 5.89543 4 7V19C4 20.1046 4.89543 21 6 21H16C17.1046 21 18 20.1046 18 19V17M8 5C8 6.10457 8.89543 7 10 7H12C13.1046 7 14 6.10457 14 5M8 5C8 3.89543 8.89543 3 10 3H12C13.1046 3 14 3.89543 14 5M14 5H16C17.1046 5 18 5.89543 18 7V10M20 14H10M10 14L13 11M10 14L13 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+                <div 
+                  className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ease-in-out ${isCodeCopied ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                >
+                  <FaCheck className="w-6 h-6 text-[#e2b714]" />
+                </div>
+                
+                <div 
+                  className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ease-in-out ${!isCodeCopied ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                >
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 5H6C4.89543 5 4 5.89543 4 7V19C4 20.1046 4.89543 21 6 21H16C17.1046 21 18 20.1046 18 19V17M8 5C8 6.10457 8.89543 7 10 7H12C13.1046 7 14 6.10457 14 5M8 5C8 3.89543 8.89543 3 10 3H12C13.1046 3 14 3.89543 14 5M14 5H16C17.1046 5 18 5.89543 18 7V10M20 14H10M10 14L13 11M10 14L13 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
               </button>
             </div>
           </div>
