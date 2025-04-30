@@ -240,8 +240,8 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
                   </div>
                 </div>
                 
-                {/* Status Icon */}
-                <div className="flex items-center justify-center w-16">
+                {/* Status Icon - Remove fixed width w-16 */}
+                <div className="flex items-center justify-center"> 
                   {playerReady ? (
                     <FaCheckCircle 
                       className="text-[#e2b714] text-xl"
@@ -263,16 +263,20 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
             <div key={`empty-${index}`} className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-[#323437] rounded-full flex items-center justify-center text-xl mr-4 text-[#646669]">
-                  <span className="text-2xl">?</span>
+                  ?
                 </div>
                 
                 <div>
-                  <div className="font-medium text-[#646669]">Waiting for player...</div>
+                  {/* Use responsive spans for different text on mobile/desktop */}
+                  <div className="font-medium text-[#646669]">
+                    <span className="block sm:hidden">Waiting...</span>
+                    <span className="hidden sm:block">Waiting for player...</span>
+                  </div>
                 </div>
               </div>
               
-              {/* Empty Slot Icon */}
-              <div className="flex items-center justify-center w-16">
+              {/* Empty Slot Icon - Remove fixed width w-16 */}
+              <div className="flex items-center justify-center"> 
                  <FaUserSlash 
                    className="text-[#646669] text-xl" 
                    title="Empty Slot" 
