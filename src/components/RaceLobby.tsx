@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { GameData } from "../types";
 import { rankedIcons } from "../types/ranks";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
-import { FaCrown } from "react-icons/fa";
+import { FaCrown, FaCheckCircle, FaClock, FaUserSlash } from "react-icons/fa";
 
 interface RaceLobbyProps {
   gameData: GameData;
@@ -240,12 +240,19 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
                   </div>
                 </div>
                 
-                <div className={`px-4 py-1 rounded-full ${
-                  playerReady
-                    ? "bg-[#323437] text-[#d1d0c5]"
-                    : "bg-transparent text-[#646669]"
-                }`}>
-                  {playerReady ? "Ready" : "Not Ready"}
+                {/* Status Icon */}
+                <div className="flex items-center justify-center w-16">
+                  {playerReady ? (
+                    <FaCheckCircle 
+                      className="text-[#e2b714] text-xl"
+                      title="Ready" 
+                    />
+                  ) : (
+                    <FaClock 
+                      className="text-[#646669] text-xl" 
+                      title="Not Ready" 
+                    />
+                  )}
                 </div>
               </div>
             );
@@ -264,8 +271,12 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({
                 </div>
               </div>
               
-              <div className="px-4 py-1 rounded-full text-[#646669]">
-                Empty
+              {/* Empty Slot Icon */}
+              <div className="flex items-center justify-center w-16">
+                 <FaUserSlash 
+                   className="text-[#646669] text-xl" 
+                   title="Empty Slot" 
+                 />
               </div>
             </div>
           ))}
