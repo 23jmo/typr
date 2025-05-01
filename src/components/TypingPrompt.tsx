@@ -3,6 +3,8 @@ import { getCursorCoordinates } from "../utils/race";
 import { keyboardSoundService } from '../services/audioService';
 
 const TEXT_SPLIT_PATTERN = /([^\s]+\s*)/g;
+const VISIBLE_LINES = 3; // Number of lines to show at once
+const LINE_HEIGHT_EM = 1.5; // Corresponds to style below (lineHeight: '1.5em')
 
 interface TypingPromptProps {
   text: string;
@@ -33,6 +35,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   const [prevInputLength, setPrevInputLength] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const outerContainerRef = useRef<HTMLDivElement>(null);
+  const [lineHeightPx, setLineHeightPx] = useState(0); // Store line height in pixels
 
   // Sync props with local state
   useEffect(() => {
@@ -128,6 +131,27 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
     };
   }, [isFinished, isMobile]);
 
+  // Calculate line height in pixels after mount and on resize
+  useEffect(() => {
+    const calculateLineHeight = () => {
+      if (textContainerRef.current) {
+        const computedStyle = window.getComputedStyle(textContainerRef.current);
+        // Use fontSize and lineHeight style to calculate pixel height
+        const fontSize = parseFloat(computedStyle.fontSize);
+        const calculatedLineHeight = fontSize * LINE_HEIGHT_EM;
+        setLineHeightPx(calculatedLineHeight);
+        console.log("Calculated Line Height (px):", calculatedLineHeight); // Debug log
+      }
+    };
+
+    calculateLineHeight(); // Initial calculation
+    window.addEventListener('resize', calculateLineHeight);
+
+    return () => {
+      window.removeEventListener('resize', calculateLineHeight);
+    };
+  }, []); // Runs once on mount and cleans up
+
   // Handle input changes from the hidden field
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (isFinished) return;
@@ -215,83 +239,115 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
     setPrevInputLength(userInput.length);
   }, [userInput, text]);
 
-  // Function to check and scroll text into center view
-  const scrollTextToCenter = useCallback((targetElement: HTMLElement) => {
-    if (!targetElement) return;
-    
-    const viewportHeight = window.innerHeight;
-    const elementRect = targetElement.getBoundingClientRect();
-    
-    // Calculate ideal position - higher on mobile devices (1/4 from top)
-    // On desktop, keep it at center (1/2 from top)
-    const idealPosition = isMobile 
-      ? viewportHeight * 0.25  // 1/4 down from top on mobile (or 3/4 up from bottom)
-      : viewportHeight / 2;    // Center on desktop
-    
-    const elementCenter = elementRect.top + (elementRect.height / 2);
-    
-    // Only scroll if the element is not reasonably positioned already
-    // Use smaller threshold on mobile for more responsive scrolling
-    const threshold = isMobile ? 50 : 100;
-    if (Math.abs(idealPosition - elementCenter) > threshold) {
-      const scrollAmount = window.pageYOffset + (elementCenter - idealPosition);
-      window.scrollTo({
-        top: scrollAmount,
-        behavior: 'smooth'
-      });
-    }
-  }, [isMobile]);
-
-  // Cursor Position Update Effect
+  // Cursor Position Update & Scrolling Effect
   useEffect(() => {
-    if (textContainerRef.current) {
-      const chars = Array.from(
-        textContainerRef.current.querySelectorAll("span.char-wrapper > span")
+    if (textContainerRef.current && lineHeightPx > 0) { // Ensure lineHeightPx is calculated
+      const container = textContainerRef.current;
+      
+      // Function to calculate and set the cursor position
+      const calculateAndSetPosition = () => {
+        // Ensure container and lineHeightPx are still valid in this scope
+        if (!textContainerRef.current || lineHeightPx <= 0) return;
+        
+        const currentContainer = textContainerRef.current;
+        const currentChars = Array.from(
+          currentContainer.querySelectorAll("span.char-wrapper > span")
+        ) as HTMLElement[];
+
+        if (currentChars.length === 0) {
+          setCursorPosition({ x: 0, y: 0 });
+          return;
+        }
+
+        const currentCursorIndex = Math.max(0, Math.min(userInput.length, currentChars.length));
+        let currentTargetChar: HTMLElement | null = null;
+        let finalX = 0;
+        let finalRelativeY = 0;
+
+        if (currentCursorIndex < currentChars.length) {
+          currentTargetChar = currentChars[currentCursorIndex];
+        } else if (currentChars.length > 0) {
+          currentTargetChar = currentChars[currentChars.length - 1];
+        }
+
+        if (currentTargetChar) {
+          const currentRect = currentTargetChar.getBoundingClientRect();
+          const currentContainerRect = currentContainer.getBoundingClientRect();
+
+          if (currentCursorIndex === currentChars.length) {
+            finalX = currentRect.right - currentContainerRect.left;
+          } else {
+            finalX = currentRect.left - currentContainerRect.left;
+          }
+          finalRelativeY = currentRect.top - currentContainerRect.top;
+          
+          // Debug log moved inside here
+          // console.log("Setting position inside calculateAndSetPosition. RelativeY:", finalRelativeY);
+          setCursorPosition({ x: finalX, y: finalRelativeY });
+
+        } else if (currentChars.length > 0) {
+          // Fallback for beginning
+          const firstChar = currentChars[0];
+          const currentRect = firstChar.getBoundingClientRect();
+          const currentContainerRect = currentContainer.getBoundingClientRect();
+          finalX = currentRect.left - currentContainerRect.left;
+          finalRelativeY = currentRect.top - currentContainerRect.top;
+          setCursorPosition({ x: finalX, y: finalRelativeY });
+        } else {
+           setCursorPosition({ x: 0, y: 0 }); // Should be caught earlier, but good fallback
+        }
+      };
+      
+      // --- Initial Calculation & Scroll Check ---
+      // Need to calculate positions *before* deciding to scroll
+      const initialChars = Array.from(
+        container.querySelectorAll("span.char-wrapper > span")
       ) as HTMLElement[];
 
-      if (chars.length === 0) return;
-
-      const cursorIndex = Math.max(0, Math.min(userInput.length, chars.length));
-      let targetChar: HTMLElement | null = null;
-
-      if (cursorIndex === chars.length) {
-        targetChar = chars[chars.length - 1];
-        if (targetChar) {
-          const rect = targetChar.getBoundingClientRect();
-          const containerRect = textContainerRef.current.getBoundingClientRect();
-          const x = rect.right - containerRect.left;
-          const y = rect.top - containerRect.top;
-          setCursorPosition({ x, y });
-          
-          // Use the scrollTextToCenter for better positioning
-          scrollTextToCenter(targetChar);
-        }
-      } else {
-        targetChar = chars[cursorIndex];
-        if (targetChar) {
-          const rect = targetChar.getBoundingClientRect();
-          const containerRect = textContainerRef.current.getBoundingClientRect();
-          const x = rect.left - containerRect.left;
-          const y = rect.top - containerRect.top;
-          setCursorPosition({ x, y });
-          
-          // Use the scrollTextToCenter for better positioning
-          scrollTextToCenter(targetChar);
-        }
+      if (initialChars.length === 0) {
+        calculateAndSetPosition(); // Set to 0,0
+        return;
       }
+      
+      const initialCursorIndex = Math.max(0, Math.min(userInput.length, initialChars.length));
+      let initialTargetChar: HTMLElement | null = null;
+      
+      if (initialCursorIndex < initialChars.length) {
+        initialTargetChar = initialChars[initialCursorIndex];
+      } else if (initialChars.length > 0) {
+        initialTargetChar = initialChars[initialChars.length - 1];
+      }
+      
+      let shouldScroll = false;
+      let newScrollTop = container.scrollTop;
+      
+      if (initialTargetChar) {
+        const initialRect = initialTargetChar.getBoundingClientRect();
+        const initialContainerRect = container.getBoundingClientRect();
+        const initialRelativeY = initialRect.top - initialContainerRect.top;
+        const initialContentY = initialRelativeY + container.scrollTop;
+        const initialCursorLineTop = Math.floor(initialContentY / lineHeightPx) * lineHeightPx;
+        const thirdLineTopBoundary = container.scrollTop + (VISIBLE_LINES - 1) * lineHeightPx;
+        
+        if (initialCursorLineTop >= thirdLineTopBoundary) {
+          shouldScroll = true;
+          newScrollTop = initialCursorLineTop; // Target scroll position
+        }
+      } 
+      // End of initial calculation & scroll check
 
-      if (!targetChar && chars.length > 0) {
-        const firstChar = chars[0];
-        const rect = firstChar.getBoundingClientRect();
-        const containerRect = textContainerRef.current.getBoundingClientRect();
-        const x = rect.left - containerRect.left;
-        const y = rect.top - containerRect.top;
-        setCursorPosition({ x, y });
-      } else if (!targetChar && chars.length === 0) {
-        setCursorPosition({ x: 0, y: 0 });
+      // --- Perform Scroll & Schedule/Set Position ---
+      if (shouldScroll) {
+        console.log("Scrolling Up (Instant). Target:", newScrollTop);
+        container.scrollTo({ top: newScrollTop, behavior: 'auto' });
+        // Schedule the definitive position calculation for the next frame
+        requestAnimationFrame(calculateAndSetPosition);
+      } else {
+        // No scroll needed, calculate and set position immediately in this frame
+        calculateAndSetPosition();
       }
     }
-  }, [userInput, text, setCursorPosition, scrollTextToCenter]);
+  }, [userInput, text, setCursorPosition, lineHeightPx]);
 
   return (
     <div 
@@ -328,27 +384,41 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
       
       <div
         ref={textContainerRef}
-        className="text-3xl sm:text-2xl md:text-3xl lg:text-4xl font-mono relative select-none"
-        style={{ 
-          minHeight: '1.5em',
-          lineHeight: '1.5em'
+        className="text-3xl sm:text-2xl md:text-3xl lg:text-4xl font-mono relative select-none overflow-hidden"
+        style={{
+          // Increase buffer significantly to prevent clipping
+          height: lineHeightPx > 0 ? `${VISIBLE_LINES * lineHeightPx + (0.5 * lineHeightPx)}px` : 'auto',
+          lineHeight: `${LINE_HEIGHT_EM}em`,
+          cursor: 'text',
         }}
         onClick={handleContainerClick}
         onTouchStart={handleContainerTouch}
       >
-        <div className="flex flex-wrap" style={{ gap: '0.5em 0' }}>
-          {!isFinished && (
-            <span
-              className="absolute w-0.5 h-[1.1em] bg-[#d1d0c5] top-[0.1em] animate-pulse transition-all duration-75 left-0 z-10"
-              style={{
-                transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px)`,
-                transition: 'transform 0.075s linear'
-              }}
-            />
-          )}
+        {/* Cursor needs to be positioned relative to the scrolling container */}
+        {/* Its Y position needs to account for the container's scrollTop */}
+        {!isFinished && (
+          <span
+            className="absolute w-0.5 bg-[#d1d0c5] top-0 left-0 animate-pulse transition-all duration-75 z-10 pointer-events-none"
+            style={{
+              // Use pixel values based on calculated lineHeightPx for positioning and height
+              top: `${lineHeightPx * 0.1}px`,
+              height: `${lineHeightPx * 0.8}px`,
+              // IMPORTANT: Subtract scrollTop so the cursor stays aligned with the text as it scrolls
+              // This fixes the bug where the cursor jumps to a higher line when scrolling
+              transform: `translate(${cursorPosition.x}px, ${cursorPosition.y + (textContainerRef.current?.scrollTop ?? 0)}px)`,
+              transition: 'transform 0.075s linear',
+            }}
+          />
+        )}
 
+        {/* Inner div for the actual text content that will scroll */}
+        {/* The cursor and opponent cursors are positioned relative to textContainerRef, */}
+        {/* but the content scrolls underneath them. */}
+        <div className="flex flex-wrap relative" style={{ gap: '0.5em 0' }}>
+          {/* Opponent Cursors - Their position also needs to be relative to the potentially scrolled content */}
           {Object.entries(opponentCursors).map(
             ([playerId, { position, color }]) => {
+              // TODO: Adjust getCursorCoordinates if the main cursor logic is fixed
               const coords = getCursorCoordinates(textContainerRef, position);
               if (!coords) return null;
 
@@ -360,19 +430,29 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
                   key={`ghost-${playerId}`}
                   className="absolute z-0 pointer-events-none"
                   style={{
-                    transform: `translate(${coords.x}px, ${coords.y}px)`,
+                    // TODO: Apply same transform logic if main cursor is fixed
+                    // transform: `translate(${coords.x}px, ${coords.y}px)`, // Assuming coords.y becomes relative
+                    transform: `translate(${coords.x}px, ${coords.y - (textContainerRef.current?.scrollTop ?? 0)}px)`, // Keep old logic for now
                     transition: "transform 0.2s linear",
                   }}
                 >
                   <span
-                    className={`absolute w-0.5 h-[1.1em] ${color} opacity-60 top-[0.1em]`}
+                    className={`absolute w-0.5 ${color} opacity-60`}
+                    style={{
+                        height: `${1.1 / LINE_HEIGHT_EM}em`,
+                        top: `${0.1 / LINE_HEIGHT_EM}em`
+                    }}
                   />
                   <span
-                    className={`absolute top-[-1.6em] left-[-50%] text-[8px] sm:text-[10px] md:text-xs ${color.replace(
+                    className={`absolute left-[-50%] text-[8px] sm:text-[10px] md:text-xs ${color.replace(
                       "bg-",
                       "text-"
                     )} whitespace-nowrap px-1 rounded bg-black bg-opacity-50`}
-                    style={{ transform: 'translateX(-50%)' }}
+                    style={{
+                        transform: 'translateX(-50%)',
+                        // TODO: Adjust opponent name top using px if needed
+                        top: `-${1.6 / LINE_HEIGHT_EM}em`
+                    }}
                   >
                     {playerName}
                   </span>
@@ -381,6 +461,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
             }
           )}
 
+          {/* Render the text characters */}
           {text.match(TEXT_SPLIT_PATTERN)?.map((part, index, parts) => {
             const startIndex = parts.slice(0, index).join('').length;
 
@@ -404,12 +485,14 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
                   return (
                     <span 
                       key={charIndex} 
-                      className="char-wrapper inline-flex items-center justify-center" 
-                      style={{ width: 'calc(0.6em)', height: 'calc(1.2em)' }}
+                      className="char-wrapper inline-flex items-center justify-center"
+                      // Remove explicit height, rely on inner span's line-height
+                      style={{ width: 'calc(0.6em)' /* height removed */ }}
                     >
                       <span
                         className={`${charColor}`}
-                        style={{ lineHeight: '1.2em', verticalAlign: 'baseline' }}
+                        // Ensure character aligns correctly within its box
+                        style={{ lineHeight: `${LINE_HEIGHT_EM}em`, verticalAlign: 'baseline' }}
                       >
                         {char === ' ' ? '\u00A0' : char}
                       </span>
