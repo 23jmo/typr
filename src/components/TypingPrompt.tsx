@@ -323,24 +323,33 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
       let shouldScroll = false;
       let newScrollTop = container.scrollTop;
       
-      if (initialTargetChar) {
+      if (initialTargetChar && lineHeightPx > 0) { // Ensure lineHeightPx is valid
         const initialRect = initialTargetChar.getBoundingClientRect();
         const initialContainerRect = container.getBoundingClientRect();
         const initialRelativeY = initialRect.top - initialContainerRect.top;
         const initialContentY = initialRelativeY + container.scrollTop;
-        const initialCursorLineTop = Math.floor(initialContentY / lineHeightPx) * lineHeightPx;
+
+        // Calculate the pixel position for the top of the 3rd visible line
         const thirdLineTopBoundary = container.scrollTop + (VISIBLE_LINES - 1) * lineHeightPx;
         
-        if (initialCursorLineTop >= thirdLineTopBoundary) {
+        // Trigger scroll if the calculated top of the current line hits the top of the 3rd visible line
+        // Using initialContentY directly might be more robust against small lineHeightPx inaccuracies
+        // We trigger if the character's top position enters the last visible line space
+        if (initialContentY >= thirdLineTopBoundary) {
           shouldScroll = true;
-          newScrollTop = initialCursorLineTop; // Target scroll position
+          // Calculate the amount to scroll: line height (1.5em) + gap (0.5em) = 2.0em
+          // Pixel equivalent: (2.0 / 1.5) * lineHeightPx = (4/3) * lineHeightPx
+          const scrollAmount = (4 / 3) * lineHeightPx;
+          newScrollTop = container.scrollTop + scrollAmount;
+          // Ensure scroll position doesn't exceed maximum possible scroll
+          newScrollTop = Math.min(newScrollTop, container.scrollHeight - container.clientHeight);
         }
       } 
       // End of initial calculation & scroll check
 
       // --- Perform Scroll & Schedule/Set Position ---
       if (shouldScroll) {
-        console.log("Scrolling Up (Instant). Target:", newScrollTop);
+        console.log(`Scrolling Up. Current ScrollTop: ${container.scrollTop}, Target: ${newScrollTop}, Amount: ${(4/3)*lineHeightPx}`); 
         container.scrollTo({ top: newScrollTop, behavior: 'auto' });
         // Schedule the definitive position calculation for the next frame
         requestAnimationFrame(calculateAndSetPosition);
