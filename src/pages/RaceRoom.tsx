@@ -44,6 +44,13 @@ const RaceRoom = () => {
   const textContainerRef = useRef<HTMLDivElement>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // =========================================
+  // Scroll to top on mount
+  // =========================================
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const text = roomState?.text || SAMPLE_TEXT;
 
   // =========================================
@@ -604,7 +611,7 @@ const RaceRoom = () => {
         />
       )}
 
-      <div className="w-full max-w-[80%]">
+      <div className="w-full max-w-full sm:max-w-[80%]">
         {(roomState.status === "countdown" || (roomState.status === "racing" && countdown === 0)) && (
           <div className="flex flex-col items-center justify-center mb-8 mt-[20vh]">
             <CountdownAnimation count={countdown} />
