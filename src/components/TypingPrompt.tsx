@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { getCursorCoordinates } from "../utils/race";
 import { keyboardSoundService } from '../services/audioService';
 
 const TEXT_SPLIT_PATTERN = /([^\s]+\s*)/g;
