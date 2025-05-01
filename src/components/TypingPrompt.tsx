@@ -380,7 +380,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   return (
     <div 
       ref={outerContainerRef}
-      className="w-full max-w-[95%] sm:max-w-[90%] mt-[12vh] sm:mt-[12vh] md:mt-[10vh] lg:mt-[30vh] mx-auto px-4 md:px-6 overflow-hidden"
+      className="w-full mt-[12vh] sm:mt-[12vh] md:mt-[10vh] lg:mt-[30vh] mx-auto px-6.5 md:px-6"
     >
       {/* Hidden input for mobile keyboard */}
       <input
@@ -412,7 +412,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
       
       <div
         ref={textContainerRef}
-        className="text-3xl sm:text-2xl md:text-3xl lg:text-4xl font-mono relative select-none pt-4 overflow-x-scroll"
+        className="text-3xl sm:text-2xl md:text-3xl lg:text-4xl font-mono relative select-none pt-4 px-6.5 overflow-x-visible overflow-y-hidden"
         style={{
           // Adjust height calculation to include top padding (remInPx)
           // Keep slight extra buffer (0.6 * lineHeightPx)
@@ -445,7 +445,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
         {/* Inner div for the actual text content that will scroll */}
         {/* The cursor and opponent cursors are positioned relative to textContainerRef, */}
         {/* but the content scrolls underneath them. */}
-        <div className="flex flex-wrap relative" style={{ gap: '0.5em 0' }}>
+        <div className="flex flex-wrap relative overflow-x-visible" style={{ gap: '0.5em 0' }}>
           {/* Opponent Cursors - Their position also needs to be relative to the potentially scrolled content */}
           {Object.entries(opponentCursors).map(
             ([playerId, { position, color }]) => {
@@ -472,18 +472,25 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
                   if (targetChar) {
                     const targetRect = targetChar.getBoundingClientRect();
                     const containerRect = container.getBoundingClientRect();
+                    // Get the computed left padding of the container
+                    const containerStyle = window.getComputedStyle(container);
+                    const paddingLeft = parseFloat(containerStyle.paddingLeft) || 0;
 
                     // If at the end, position is after the last char; otherwise, it's before the target char
+                    // Subtract paddingLeft to correct for the offset
                     opponentX = (opponentCursorIndex === chars.length)
-                      ? targetRect.right - containerRect.left
-                      : targetRect.left - containerRect.left;
+                      ? targetRect.right - containerRect.left - paddingLeft
+                      : targetRect.left - containerRect.left - paddingLeft;
 
                     opponentRelativeY = targetRect.top - containerRect.top;
                   } else {
                     // Fallback if targetChar is somehow null (shouldn't happen if chars.length > 0)
                     const firstCharRect = chars[0].getBoundingClientRect();
                      const containerRect = container.getBoundingClientRect();
-                    opponentX = firstCharRect.left - containerRect.left;
+                    // Also apply padding correction to the fallback
+                    const containerStyle = window.getComputedStyle(container);
+                    const paddingLeft = parseFloat(containerStyle.paddingLeft) || 0;
+                    opponentX = firstCharRect.left - containerRect.left - paddingLeft;
                     opponentRelativeY = firstCharRect.top - containerRect.top;
                   }
                 }
