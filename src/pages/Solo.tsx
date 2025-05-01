@@ -206,7 +206,7 @@ const Solo = () => {
 
   return (
     <div className="inset-0 flex flex-col items-center p-4">
-      <div className="w-full max-w-[80%]">
+      <div className="w-full max-w-full sm:max-w-[80%]">
         {text ? (
           isFinished ? (
             <div className="mt-[30vh]">
