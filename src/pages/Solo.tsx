@@ -46,6 +46,7 @@ const Solo = () => {
   const [wpmHistory, setWpmHistory] = useState<
     Array<{ wpm: number; time: number }>
   >([]);
+  const [resetScrollSignal, setResetScrollSignal] = useState(0);
 
   const wpmInterval = useRef<NodeJS.Timeout | null>(null);
 
@@ -65,6 +66,7 @@ const Solo = () => {
     setIsFinished(false);
     setCursorPosition({ x: 0, y: 0 });
     setWpmHistory([]);
+    setResetScrollSignal((prev) => prev + 1);
     if (wpmInterval.current) clearInterval(wpmInterval.current);
   };
 
@@ -225,6 +227,7 @@ const Solo = () => {
               setCursorPosition={setCursorPosition}
               opponentCursors={{}}
               roomState={{}}
+              resetScrollSignal={resetScrollSignal}
             />
           )
         ) : (

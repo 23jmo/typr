@@ -16,6 +16,7 @@ interface TypingPromptProps {
   roomState: any; // TODO: Add proper type
   onInputChange?: (newInput: string) => void;
   onInputSubmit?: () => void;
+  resetScrollSignal?: number;
 }
 
 const TypingPrompt: React.FC<TypingPromptProps> = ({
@@ -28,6 +29,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   roomState,
   onInputChange,
   onInputSubmit,
+  resetScrollSignal,
 }) => {
   const textContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -349,6 +351,13 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
     }
   }, [userInput, text, setCursorPosition, lineHeightPx]);
 
+  // Scroll to top when resetScrollSignal changes (for Solo restart)
+  useEffect(() => {
+    if (resetScrollSignal && textContainerRef.current) {
+      textContainerRef.current.scrollTop = 0;
+    }
+  }, [resetScrollSignal]);
+
   return (
     <div 
       ref={outerContainerRef}
@@ -387,7 +396,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
         className="text-3xl sm:text-2xl md:text-3xl lg:text-4xl font-mono relative select-none overflow-hidden"
         style={{
           // Increase buffer significantly to prevent clipping
-          height: lineHeightPx > 0 ? `${VISIBLE_LINES * lineHeightPx + (0.5 * lineHeightPx)}px` : 'auto',
+          height: lineHeightPx > 0 ? `${VISIBLE_LINES * lineHeightPx + (0.6 * lineHeightPx)}px` : 'auto',
           lineHeight: `${LINE_HEIGHT_EM}em`,
           cursor: 'text',
         }}
