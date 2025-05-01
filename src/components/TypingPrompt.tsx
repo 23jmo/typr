@@ -5,6 +5,7 @@ import { keyboardSoundService } from '../services/audioService';
 const TEXT_SPLIT_PATTERN = /([^\s]+\s*)/g;
 const VISIBLE_LINES = 3; // Number of lines to show at once
 const LINE_HEIGHT_EM = 1.5; // Corresponds to style below (lineHeight: '1.5em')
+const TOP_PADDING_REM = 1; // Added padding-top in rem units
 
 interface TypingPromptProps {
   text: string;
@@ -38,6 +39,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   const [isMobile, setIsMobile] = useState(false);
   const outerContainerRef = useRef<HTMLDivElement>(null);
   const [lineHeightPx, setLineHeightPx] = useState(0); // Store line height in pixels
+  const [remInPx, setRemInPx] = useState(16); // Store 1rem in pixels, default 16
 
   // Sync props with local state
   useEffect(() => {
@@ -135,7 +137,15 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
 
   // Calculate line height in pixels after mount and on resize
   useEffect(() => {
-    const calculateLineHeight = () => {
+    const calculateMetrics = () => {
+      // Calculate rem in pixels
+      const rootFontSize = parseFloat(
+        window.getComputedStyle(document.documentElement).fontSize
+      );
+      setRemInPx(rootFontSize * TOP_PADDING_REM); // Calculate padding in px
+      console.log(`1rem = ${rootFontSize}px, Padding Top = ${rootFontSize * TOP_PADDING_REM}px`); // Debug log
+
+      // Calculate line height in pixels
       if (textContainerRef.current) {
         const computedStyle = window.getComputedStyle(textContainerRef.current);
         // Use fontSize and lineHeight style to calculate pixel height
@@ -146,11 +156,11 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
       }
     };
 
-    calculateLineHeight(); // Initial calculation
-    window.addEventListener('resize', calculateLineHeight);
+    calculateMetrics(); // Initial calculation
+    window.addEventListener('resize', calculateMetrics);
 
     return () => {
-      window.removeEventListener('resize', calculateLineHeight);
+      window.removeEventListener('resize', calculateMetrics);
     };
   }, []); // Runs once on mount and cleans up
 
@@ -358,7 +368,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
         calculateAndSetPosition();
       }
     }
-  }, [userInput, text, setCursorPosition, lineHeightPx]);
+  }, [userInput, text, setCursorPosition, lineHeightPx, remInPx]);
 
   // Scroll to top when resetScrollSignal changes (for Solo restart)
   useEffect(() => {
@@ -370,7 +380,7 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
   return (
     <div 
       ref={outerContainerRef}
-      className="w-full max-w-[95%] sm:max-w-[90%] mt-[12vh] sm:mt-[12vh] md:mt-[10vh] lg:mt-[30vh] mx-auto"
+      className="w-full max-w-[95%] sm:max-w-[90%] mt-[12vh] sm:mt-[12vh] md:mt-[10vh] lg:mt-[30vh] mx-auto px-4 md:px-6 overflow-hidden"
     >
       {/* Hidden input for mobile keyboard */}
       <input
@@ -402,10 +412,13 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
       
       <div
         ref={textContainerRef}
-        className="text-3xl sm:text-2xl md:text-3xl lg:text-4xl font-mono relative select-none overflow-hidden"
+        className="text-3xl sm:text-2xl md:text-3xl lg:text-4xl font-mono relative select-none pt-4 overflow-x-scroll"
         style={{
-          // Increase buffer significantly to prevent clipping
-          height: lineHeightPx > 0 ? `${VISIBLE_LINES * lineHeightPx + (0.6 * lineHeightPx)}px` : 'auto',
+          // Adjust height calculation to include top padding (remInPx)
+          // Keep slight extra buffer (0.6 * lineHeightPx)
+          height: lineHeightPx > 0 && remInPx > 0 
+                  ? `${VISIBLE_LINES * lineHeightPx + (0.6 * lineHeightPx) + remInPx}px` 
+                  : 'auto',
           lineHeight: `${LINE_HEIGHT_EM}em`,
           cursor: 'text',
         }}
@@ -494,7 +507,8 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
                   className="absolute z-0 pointer-events-none"
                   style={{
                     // Apply calculated X and the scroll-adjusted Y
-                    transform: `translate(${opponentX}px, ${finalOpponentY}px)`,
+                    // Subtract remInPx to compensate for the container's top padding
+                    transform: `translate(${opponentX}px, ${finalOpponentY - remInPx}px)`,
                     transition: "transform 0.2s linear", // Keep smooth transition
                   }}
                 >
@@ -511,11 +525,13 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
                     className={`absolute left-[-50%] text-[8px] sm:text-[10px] md:text-xs ${color.replace(
                       "bg-",
                       "text-"
-                    )} whitespace-nowrap px-1 rounded bg-black bg-opacity-50`}
+                    )} whitespace-nowrap px-1 rounded`}
                     style={{
                       transform: 'translateX(-50%)',
-                      top: `-${lineHeightPx * 0.6}px`, // Position above cursor using calculated line height
-                      // Adjusted calculation for name tag position relative to cursor
+                      // Adjust top position conditionally based on mobile
+                      // Desktop: Original negative offset + padding compensation
+                      // Mobile: Original negative offset only
+                      top: `${isMobile ? -lineHeightPx * 0.6 : -lineHeightPx * 0.6 + remInPx}px`,
                     }}
                   >
                     {playerName}
