@@ -427,40 +427,86 @@ const TypingPrompt: React.FC<TypingPromptProps> = ({
           {/* Opponent Cursors - Their position also needs to be relative to the potentially scrolled content */}
           {Object.entries(opponentCursors).map(
             ([playerId, { position, color }]) => {
-              // TODO: Adjust getCursorCoordinates if the main cursor logic is fixed
-              const coords = getCursorCoordinates(textContainerRef, position);
-              if (!coords) return null;
+              // --- Direct Opponent Cursor Calculation ---
+              let opponentX = 0;
+              let opponentRelativeY = 0;
+              const container = textContainerRef.current;
+
+              if (container && lineHeightPx > 0) { // Ensure container and line height are available
+                const chars = Array.from(
+                  container.querySelectorAll("span.char-wrapper > span")
+                ) as HTMLElement[];
+
+                if (chars.length > 0) {
+                  const opponentCursorIndex = Math.max(0, Math.min(position, chars.length));
+                  let targetChar: HTMLElement | null = null;
+
+                  if (opponentCursorIndex < chars.length) {
+                    targetChar = chars[opponentCursorIndex];
+                  } else { // Position is at the end of the text
+                    targetChar = chars[chars.length - 1];
+                  }
+
+                  if (targetChar) {
+                    const targetRect = targetChar.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+
+                    // If at the end, position is after the last char; otherwise, it's before the target char
+                    opponentX = (opponentCursorIndex === chars.length)
+                      ? targetRect.right - containerRect.left
+                      : targetRect.left - containerRect.left;
+
+                    opponentRelativeY = targetRect.top - containerRect.top;
+                  } else {
+                    // Fallback if targetChar is somehow null (shouldn't happen if chars.length > 0)
+                    const firstCharRect = chars[0].getBoundingClientRect();
+                     const containerRect = container.getBoundingClientRect();
+                    opponentX = firstCharRect.left - containerRect.left;
+                    opponentRelativeY = firstCharRect.top - containerRect.top;
+                  }
+                }
+                 // If chars.length is 0, coords remain 0,0
+              }
+              // --- End Direct Calculation ---
+
+              // Fallback if calculation failed (e.g., container not ready)
+              // Removed call to getCursorCoordinates
 
               const playerName =
                 roomState?.players[playerId]?.name || "Opponent";
+
+              // Calculate final Y, accounting for scroll
+              // IMPORTANT: Add scrollTop here so the cursor moves with the text content
+              const finalOpponentY = opponentRelativeY + (container?.scrollTop ?? 0);
 
               return (
                 <div
                   key={`ghost-${playerId}`}
                   className="absolute z-0 pointer-events-none"
                   style={{
-                    // TODO: Apply same transform logic if main cursor is fixed
-                    // transform: `translate(${coords.x}px, ${coords.y}px)`, // Assuming coords.y becomes relative
-                    transform: `translate(${coords.x}px, ${coords.y - (textContainerRef.current?.scrollTop ?? 0)}px)`, // Keep old logic for now
-                    transition: "transform 0.2s linear",
+                    // Apply calculated X and the scroll-adjusted Y
+                    transform: `translate(${opponentX}px, ${finalOpponentY}px)`,
+                    transition: "transform 0.2s linear", // Keep smooth transition
                   }}
                 >
+                  {/* Opponent Cursor Visual */}
                   <span
                     className={`absolute w-0.5 ${color} opacity-60`}
                     style={{
-                        height: `${1.1 / LINE_HEIGHT_EM}em`,
-                        top: `${0.1 / LINE_HEIGHT_EM}em`
+                      height: `${lineHeightPx * 0.8}px`, // Use calculated line height
+                      top: `${lineHeightPx * 0.1}px`,    // Use calculated line height
                     }}
                   />
+                  {/* Opponent Name Tag */}
                   <span
                     className={`absolute left-[-50%] text-[8px] sm:text-[10px] md:text-xs ${color.replace(
                       "bg-",
                       "text-"
                     )} whitespace-nowrap px-1 rounded bg-black bg-opacity-50`}
                     style={{
-                        transform: 'translateX(-50%)',
-                        // TODO: Adjust opponent name top using px if needed
-                        top: `-${1.6 / LINE_HEIGHT_EM}em`
+                      transform: 'translateX(-50%)',
+                      top: `-${lineHeightPx * 0.6}px`, // Position above cursor using calculated line height
+                      // Adjusted calculation for name tag position relative to cursor
                     }}
                   >
                     {playerName}
