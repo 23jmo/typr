@@ -359,7 +359,7 @@ const CustomRoom = () => {
   );
 
   return (
-    <div className="flex flex-col items-center min-h-screen p-4 bg-[#323437] mt-24 select-none">
+    <div className="flex flex-col items-center min-h-screen p-4 bg-[#323437] mt-16 sm:mt-24 select-none">
       {/* Mode toggle - updated with darker color scheme */}
       <div className="w-full max-w-4xl flex mb-8 bg-[#2c2e31] rounded-lg overflow-hidden">
         <button
@@ -371,7 +371,7 @@ const CustomRoom = () => {
           }`}
         >
           <KeyboardIcon />
-          <span className="font-medium">Create Game</span>
+          <span className="font-medium">Create<span className="hidden sm:inline"> Game</span></span>
         </button>
         <button
           onClick={() => setMode("join")}
@@ -382,7 +382,7 @@ const CustomRoom = () => {
           }`}
         >
           <ShareIcon />
-          <span className="font-medium">Join Game</span>
+          <span className="font-medium">Join<span className="hidden sm:inline"> Game</span></span>
         </button>
       </div>
       
