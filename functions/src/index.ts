@@ -6,16 +6,16 @@ import * as functionsV1 from 'firebase-functions/v1';
 admin.initializeApp();
 
 /**
- * Scheduled function to update the global leaderboard daily at midnight
- * This ensures we only make one query per day to get the top users by ELO
+ * Scheduled function to update the global leaderboard hourly
+ * This ensures we refresh the leaderboard every hour to keep it up to date
  */
-export const updateDailyLeaderboard = onSchedule({
-  schedule: '0 0 * * *', // Run at midnight every day (cron syntax)
+export const updateHourlyLeaderboard = onSchedule({
+  schedule: '0 * * * *', // Run at the top of every hour (cron syntax)
   timeZone: 'America/New_York', // Adjust to your preferred timezone
   retryCount: 3, // Retry up to 3 times if the function fails
 }, async () => {
   try {
-    logger.info("Starting daily leaderboard update");
+    logger.info("Starting hourly leaderboard update");
     
     // Get top 5 users by ELO
     const topUsersQuery = await admin.firestore().collection("users")
