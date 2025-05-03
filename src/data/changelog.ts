@@ -12,7 +12,8 @@ const changelog: ChangelogEntry[] = [
     changes: [
       "Fixed bug in solo mode where WPM would skyrocket after a completed run",
       "Added timer in race room to end games, displayed in playerList (30s for ranked, customizable in customs)",
-      "Increased window for matchmaking from 100 ELO to 500 ELO"
+      "Increased window for matchmaking from 100 ELO to 500 ELO",
+      "Leaderboard now updates every hour"
     ]
   },
   {
