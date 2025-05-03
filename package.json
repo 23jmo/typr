@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:local": "VITE_BACKEND_URL=http://localhost:5001 vite",
-    "dev:local:win": "set VITE_BACKEND_URL=http://localhost:5001&& vite",
+    "dev:local": "VITE_BACKEND_URL=http://localhost:5001 VITE_WS_URL=ws://localhost:5001 vite",
+    "dev:local:win": "set VITE_BACKEND_URL=http://localhost:5001&& set VITE_WS_URL=ws://localhost:5001&& vite",
     "build": "tsc -b && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"

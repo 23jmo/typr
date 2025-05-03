@@ -1,12 +1,13 @@
 import { useNavigate } from "react-router-dom";
 import GameModeCard from "../components/GameModeCard";
+import Changelog from "../components/Changelog";
 import { FaUserFriends, FaTrophy, FaKeyboard } from "react-icons/fa";
 
 const Home = () => {
   const navigate = useNavigate();
   
   return (
-    <div className="flex w-full h-screen bg-gray-900 flex-col md:flex-row overflow-hidden">
+    <div className="flex w-full h-screen bg-gray-900 flex-col md:flex-row overflow-hidden relative">
       <GameModeCard
         title="Custom Game"
         description="Play with friends using custom settings and create your own typing challenges"
@@ -30,6 +31,8 @@ const Home = () => {
         color="text-green-500"
         onClick={() => navigate("/solo")}
       />
+      
+      <Changelog />
     </div>
   );
 };

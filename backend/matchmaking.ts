@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 import { RedisClientType } from "redis";
 import { generateRandomText } from "./topics";
 import { RoomData } from "./types";
+import { DEFAULT_RANKED_TIME_LIMIT } from "./roomManager"; // Import the constant
 
 // --- Matchmaking Queue (Redis Key) ---
 export const MATCHMAKING_QUEUE_KEY = "matchmakingQueue";
@@ -16,7 +17,7 @@ export interface MatchmakingPlayerData {
 }
 
 // --- Core Matchmaking Logic ---
-export const ELO_RANGE = 100; // Example: Match players within 100 ELO points
+export const ELO_RANGE = 500; // Match players within 500 ELO points
 export const MAX_WAIT_TIME_SECONDS = 60; // Max time a player waits before widening search (optional)
 
 // References to external dependencies to avoid circular references
@@ -173,7 +174,7 @@ export const tryMatchmaking = async (playerData: MatchmakingPlayerData) => {
         name: `Ranked Match ${roomId}`,
         status: "countdown", // Start directly in countdown
         createdAt: Date.now(),
-        timeLimit: 60, // Standard 1 minute for ranked
+        timeLimit: DEFAULT_RANKED_TIME_LIMIT, // Use the constant for ranked time limit (30s)
         textLength: roomText.split(" ").length, // Approx word count
         playerLimit: 2,
         isRanked: true,

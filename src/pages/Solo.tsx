@@ -66,6 +66,8 @@ const Solo = () => {
     setIsFinished(false);
     setCursorPosition({ x: 0, y: 0 });
     setWpmHistory([]);
+    // Reset character statistics
+    setCharStats({ correct: 0, incorrect: 0, extra: 0, missed: 0 });
     setResetScrollSignal((prev) => prev + 1);
     if (wpmInterval.current) clearInterval(wpmInterval.current);
   };
