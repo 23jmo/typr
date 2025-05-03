@@ -230,7 +230,6 @@ interface RankedQueue {
   username: string;
   elo: number;
   joinedAt: admin.firestore.Timestamp;
-  searchRange: number;
   status?: "searching" | "matched";
 }
 
@@ -252,15 +251,8 @@ export const handleRankedQueueUpdate = onDocumentCreated(
     if (queueData.status === "matched") return;
 
     try {
-      // Calculate search range based on queue time
-      const queueTime = Date.now() - queueData.joinedAt.toMillis();
-      const searchRange = Math.min(
-        400,
-        queueData.searchRange + queueTime / 1000
-      );
-
       logger.info(
-        `Player ${queueData.userId} joined queue with ELO ${queueData.elo} and search range ${searchRange}`
+        `Player ${queueData.userId} joined queue with ELO ${queueData.elo}`
       );
 
       // Find match within range - MODIFIED QUERY to fix Firestore limitations
@@ -274,6 +266,7 @@ export const handleRankedQueueUpdate = onDocumentCreated(
       // Process results in memory to find a match
       let bestMatch: RankedQueue | null = null;
       let smallestEloDiff = Infinity;
+      const fixedEloRange = 500; // Define the fixed Elo range
 
       for (const doc of snapshot.docs) {
         const potentialMatch = doc.data() as RankedQueue;
@@ -281,9 +274,9 @@ export const handleRankedQueueUpdate = onDocumentCreated(
         // Skip if same player
         if (potentialMatch.userId === queueData.userId) continue;
 
-        // Check if within ELO range
+        // Check if within fixed ELO range
         const eloDiff = Math.abs(queueData.elo - potentialMatch.elo);
-        if (eloDiff <= searchRange && eloDiff < smallestEloDiff) {
+        if (eloDiff <= fixedEloRange && eloDiff < smallestEloDiff) {
           bestMatch = potentialMatch;
           smallestEloDiff = eloDiff;
         }
@@ -312,15 +305,8 @@ export const handleRankedQueueUpdate = onDocumentCreated(
             logger.info(
               `Opponent ${opponent.userId} is no longer available for matching`
             );
-            // Opponent is no longer available, update search range and try again
-            transaction.update(
-              db.collection("rankedQueue").doc(queueData.userId),
-              {
-                searchRange,
-                status: "searching",
-              }
-            );
-            return;
+            // Opponent is no longer available, do nothing (player remains searching)
+            return; // Player remains searching
           }
 
           logger.info(`Both players available, marking as matched`);
@@ -338,17 +324,9 @@ export const handleRankedQueueUpdate = onDocumentCreated(
         await createRankedMatch(queueData, opponent);
       } else {
         logger.info(
-          `No match found for player ${queueData.userId}, updating search range`
+          `No match found for player ${queueData.userId}`
         );
-        // Update search range if no match found
-        await admin
-          .firestore()
-          .collection("rankedQueue")
-          .doc(queueData.userId)
-          .update({
-            searchRange,
-            status: "searching",
-          });
+        // Do nothing if no match found, player remains searching
       }
     } catch (error) {
       logger.error("Error in matchmaking:", error);
@@ -738,17 +716,14 @@ export const processStagnantQueue = onSchedule(
         // Skip if already matched in this run
         if (matchedPlayerIds.has(player.userId)) continue;
 
-        // Calculate search range based on queue time
-        const queueTime = Date.now() - player.joinedAt.toMillis();
-        const searchRange = Math.min(400, 100 + queueTime / 1000);
-
         logger.info(
-          `Processing player ${player.userId} with ELO ${player.elo} and search range ${searchRange}`
+          `Processing player ${player.userId} with ELO ${player.elo}`
         );
 
         // Find best match for this player
         let bestMatch: RankedQueue | null = null;
         let smallestEloDiff = Infinity;
+        const fixedEloRange = 500; // Define the fixed Elo range
 
         for (const potentialMatch of players) {
           // Skip if same player or already matched
@@ -758,9 +733,9 @@ export const processStagnantQueue = onSchedule(
           )
             continue;
 
-          // Check if within ELO range
+          // Check if within fixed ELO range
           const eloDiff = Math.abs(player.elo - potentialMatch.elo);
-          if (eloDiff <= searchRange && eloDiff < smallestEloDiff) {
+          if (eloDiff <= fixedEloRange && eloDiff < smallestEloDiff) {
             bestMatch = potentialMatch;
             smallestEloDiff = eloDiff;
           }
