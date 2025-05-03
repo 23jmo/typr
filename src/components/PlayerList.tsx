@@ -8,9 +8,10 @@ interface PlayerListProps {
   localUserId: string | undefined;
   roomStatus: string;
   playerLimit: number;
+  timeRemaining: number | null;
 }
 
-const PlayerList = ({ players, localUserId, roomStatus, playerLimit }: PlayerListProps) => {
+const PlayerList = ({ players, localUserId, roomStatus, playerLimit, timeRemaining }: PlayerListProps) => {
   // Don't render anything if we're in the waiting state
   if (roomStatus === 'waiting') {
     return null;
@@ -44,11 +45,16 @@ const PlayerList = ({ players, localUserId, roomStatus, playerLimit }: PlayerLis
       style={{ zIndex: 9999 }}
     >
       <div className="bg-[#232527] p-2 rounded shadow-lg max-h-[80vh] overflow-y-auto w-[220px]">
-        <h3 className="drag-handle font-bold mb-1 text-sm border-b border-[#3c3e41] pb-1 flex items-center gap-2 cursor-move">
+        <h3 className="drag-handle font-bold mb-1 text-sm border-b border-[#3c3e41] pb-1 flex items-center justify-between gap-2 cursor-move">
           <FaGripVertical className="text-gray-500" />
-          <span className="flex-1">
+          <span className="flex-grow">
             Players ({Object.keys(players).length}/{playerLimit})
           </span>
+          {roomStatus === 'racing' && timeRemaining !== null && (
+            <span className="font-mono text-md font-bold text-[#e2b714]">
+              {timeRemaining}
+            </span>
+          )}
         </h3>
         <div className="space-y-1">
           {Object.values(players)

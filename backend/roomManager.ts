@@ -6,6 +6,9 @@ import {
 } from './topics';
 import { RoomData } from './types';
 
+// Default time limit for ranked games in seconds
+export const DEFAULT_RANKED_TIME_LIMIT = 30;
+
 // References to external dependencies to avoid circular references
 let io: Server;
 let rooms: { [roomId: string]: RoomData } = {};
@@ -27,7 +30,8 @@ export const initRoomManager = (
     startCountdown,
     resetRoomForNewGame,
     startTopicVotingWithDeps: (roomId: string) => startTopicVoting(roomId, rooms, broadcastRoomUpdate, handleVotingEnd),
-    handleVotingEnd  // Expose the function for direct access
+    handleVotingEnd,  // Expose the function for direct access
+    startRaceTimer    // Expose race timer function
   };
 };
 
@@ -39,9 +43,84 @@ export const broadcastRoomUpdate = (roomId: string) => {
     const roomDataToSend = { ...room };
     delete roomDataToSend.countdownTimer;
     delete roomDataToSend.votingTimer;
+    delete roomDataToSend.raceTimer; // Also delete race timer
     io.to(roomId).emit("gameUpdate", roomDataToSend);
     console.log(`[Room: ${roomId}] Broadcasted gameUpdate`);
   }
+};
+
+// Start a timer to end the race after the room's time limit
+export const startRaceTimer = (roomId: string) => {
+  const room = rooms[roomId];
+  if (!room) {
+    console.log(`[RaceTimer] Room ${roomId} not found.`);
+    return;
+  }
+  
+  // Use the room's timeLimit or default to 30 seconds for ranked games
+  const timeLimit = room.timeLimit || (room.isRanked ? DEFAULT_RANKED_TIME_LIMIT : 60);
+  const timeLimitMs = timeLimit * 1000; // Convert seconds to milliseconds
+  
+  console.log(`[RaceTimer] Starting race timer for room ${roomId}. Time limit: ${timeLimit} seconds`);
+  
+  // Clear any existing race timer before setting a new one
+  if (room.raceTimer) {
+    clearTimeout(room.raceTimer);
+    console.log(`[RaceTimer] Cleared existing race timer for room ${roomId}`);
+  }
+  
+  // Set a timer to end the race after the time limit
+  room.raceTimer = setTimeout(() => {
+    const currentRoom = rooms[roomId]; // Re-fetch room state
+    // Check if room still exists and is still in racing phase
+    if (currentRoom && currentRoom.status === 'racing') {
+      console.log(`[RaceTimer] Time limit reached for room ${roomId}. Finishing race.`);
+      
+      // Find any players who haven't finished yet
+      const unfinishedPlayers = Object.values(currentRoom.players).filter(p => !p.finished);
+      
+      // Mark all unfinished players with their current progress
+      unfinishedPlayers.forEach(player => {
+        player.finished = true;
+        player.finishTime = Date.now();
+      });
+      
+      // Determine the winner (player with highest progress)
+      if (!currentRoom.winner) {
+        const players = Object.entries(currentRoom.players);
+        if (players.length > 0) {
+          const sortedPlayers = players
+            .filter(([_, player]) => player.connected) // Only consider connected players
+            .sort(([_id1, a], [_id2, b]) => {
+              // First by progress (desc)
+              if (b.progress !== a.progress) return b.progress - a.progress;
+              // Then by finish time (asc) if both have finished
+              if (a.finishTime && b.finishTime) return a.finishTime - b.finishTime;
+              // Finished players ranked above unfinished
+              if (a.finishTime && !b.finishTime) return -1;
+              if (!a.finishTime && b.finishTime) return 1;
+              // If neither finished, sort by current WPM
+              return b.wpm - a.wpm;
+            });
+          
+          // Set the winner
+          if (sortedPlayers.length > 0) {
+            currentRoom.winner = sortedPlayers[0][0];
+            console.log(`[RaceTimer] Winner determined for room ${roomId}: ${currentRoom.winner}`);
+          }
+        }
+      }
+      
+      // Change room status to finished
+      currentRoom.status = 'finished';
+      currentRoom.raceTimer = undefined; // Clear the timer handle
+      
+      // Broadcast the finished state
+      broadcastRoomUpdate(roomId);
+    } else {
+      console.log(`[RaceTimer] Race timer fired for room ${roomId}, but state was not 'racing' or room deleted. No action taken.`);
+    }
+  }, timeLimitMs);
 };
 
 // Start the countdown phase for a room
@@ -87,6 +166,10 @@ export const startCountdown = (roomId: string) => {
       currentRoom.startTime = Date.now(); // Set the official race start time
       currentRoom.countdownStartedAt = undefined; // Clear countdown start time
       currentRoom.countdownTimer = undefined; // Clear the timer handle
+      
+      // Start the race timer when transitioning to racing
+      startRaceTimer(roomId);
+      
       // Broadcast the racing state
       broadcastRoomUpdate(roomId);
     } else {
@@ -101,6 +184,20 @@ export const resetRoomForNewGame = (roomId: string) => {
   if (!room) return;
 
   console.log(`[Reset] Resetting room ${roomId} for new game.`);
+
+  // Clear any active timers
+  if (room.countdownTimer) {
+    clearTimeout(room.countdownTimer);
+    room.countdownTimer = undefined;
+  }
+  if (room.votingTimer) {
+    clearTimeout(room.votingTimer);
+    room.votingTimer = undefined;
+  }
+  if (room.raceTimer) {
+    clearTimeout(room.raceTimer);
+    room.raceTimer = undefined;
+  }
 
   room.status = 'waiting';
   room.winner = undefined;

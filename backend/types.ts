@@ -40,6 +40,7 @@ export interface RoomData {
   // Add timers if needed (NodeJS.Timeout)
   countdownTimer?: NodeJS.Timeout | null;
   votingTimer?: NodeJS.Timeout | null;
+  raceTimer?: NodeJS.Timeout | null; // Timer to auto-finish race after time limit
 }
 
 interface UserStats {

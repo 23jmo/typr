@@ -39,10 +39,12 @@ const RaceRoom = () => {
   const [opponentCursors, setOpponentCursors] = useState<{ [playerId: string]: { position: number; color: string } }>({});
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   // Refs
   const textContainerRef = useRef<HTMLDivElement>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeRemainingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // =========================================
   // Scroll to top on mount
@@ -202,6 +204,9 @@ const RaceRoom = () => {
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
       }
+      if (timeRemainingIntervalRef.current) {
+        clearInterval(timeRemainingIntervalRef.current);
+      }
     };
   }, [roomId, localUserId, navigate]);
 
@@ -246,6 +251,57 @@ const RaceRoom = () => {
       }
     };
   }, [roomState?.status, roomState?.countdownStartedAt]);
+
+  // =========================================
+  // Race Timer Effect
+  // =========================================
+  useEffect(() => {
+    // Clear any existing timer
+    if (timeRemainingIntervalRef.current) {
+      clearInterval(timeRemainingIntervalRef.current);
+      timeRemainingIntervalRef.current = null;
+    }
+
+    // Only set up the timer when the race is active
+    if (roomState?.status === 'racing' && roomState.startTime) {
+      // Get the time limit from the room (convert to milliseconds)
+      const timeLimit = roomState.timeLimit || (roomState.isRanked ? 30 : 60); // Default to 30s for ranked, 60s for others
+      const timeLimitMs = timeLimit * 1000;
+      
+      // Calculate the end time of the race
+      const raceEndTime = roomState.startTime + timeLimitMs;
+      
+      const updateTimeRemaining = () => {
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((raceEndTime - now) / 1000));
+        
+        setTimeRemaining(remaining);
+        
+        // If time is up and the race is still going, it will be handled by the server
+        if (remaining <= 0 && timeRemainingIntervalRef.current) {
+          clearInterval(timeRemainingIntervalRef.current);
+          timeRemainingIntervalRef.current = null;
+        }
+      };
+      
+      // Initial update
+      updateTimeRemaining();
+      
+      // Set up the interval
+      timeRemainingIntervalRef.current = setInterval(updateTimeRemaining, 500);
+    } else {
+      // Reset time remaining if not racing
+      setTimeRemaining(null);
+    }
+    
+    // Clean up on component unmount or when dependencies change
+    return () => {
+      if (timeRemainingIntervalRef.current) {
+        clearInterval(timeRemainingIntervalRef.current);
+        timeRemainingIntervalRef.current = null;
+      }
+    };
+  }, [roomState?.status, roomState?.startTime, roomState?.timeLimit, roomState?.isRanked]);
 
   // =========================================
   // Race Start Time Effect
@@ -554,6 +610,7 @@ const RaceRoom = () => {
     setCharStats({ correct: 0, incorrect: 0, extra: 0, missed: 0 });
     setCursorPosition({ x: 0, y: 0 });
     setOpponentCursors({});
+    setTimeRemaining(null);
   };
 
   // =========================================
@@ -584,11 +641,12 @@ const RaceRoom = () => {
   return (
     <div className="flex flex-col items-center min-h-screen p-4 bg-[#323437] text-[#d1d0c5]">
       {!isMobile && roomState && (
-        <PlayerList 
+        <PlayerList
           players={roomState.players}
           localUserId={localUserId}
           roomStatus={roomState.status}
           playerLimit={roomState.playerLimit}
+          timeRemaining={timeRemaining}
         />
       )}
 
@@ -623,144 +681,146 @@ const RaceRoom = () => {
         )}
 
         {roomState.status === "racing" && (
-          <TypingPrompt
-            text={text}
-            userInput={userInput}
-            isFinished={isFinished}
-            cursorPosition={cursorPosition}
-            setCursorPosition={setCursorPosition}
-            opponentCursors={opponentCursors}
-            roomState={roomState}
-            onInputChange={(newInput) => {
-              // Handle input changes from mobile devices
-              if (!socket || !roomState || isFinished || roomState.status !== "racing") return;
-              
-              // If a new character was added
-              if (newInput.length > userInput.length) {
-                const newChar = newInput.charAt(newInput.length - 1);
+          <div className="w-full flex flex-col">
+            <TypingPrompt
+              text={text}
+              userInput={userInput}
+              isFinished={isFinished}
+              cursorPosition={cursorPosition}
+              setCursorPosition={setCursorPosition}
+              opponentCursors={opponentCursors}
+              roomState={roomState}
+              onInputChange={(newInput) => {
+                // Handle input changes from mobile devices
+                if (!socket || !roomState || isFinished || roomState.status !== "racing") return;
                 
-                // Play key sound based on the key pressed
-                if (newChar === " ") {
-                  keyboardSoundService.playSound("space");
-                } else {
-                  keyboardSoundService.playSound("keypress");
-                }
-
-                const currentIndex = newInput.length - 1;
-                let currentCorrect = charStats.correct;
-                let currentIncorrect = charStats.incorrect;
-                let currentExtra = charStats.extra;
-
-                if (currentIndex >= text.length) {
-                  currentExtra++;
-                } else if (newInput[currentIndex] === text[currentIndex]) {
-                  currentCorrect++;
-                } else {
-                  currentIncorrect++;
-                  // Play error sound
-                  keyboardSoundService.playSound("error");
-                }
-
-                const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
-                setCharStats(newCharStats);
-
-                const totalChars = newCharStats.correct + newCharStats.incorrect + newCharStats.extra;
-                const currentAccuracy = Math.round((newCharStats.correct / totalChars) * 100) || 100;
-                setAccuracy(currentAccuracy);
-
-                // Set start time if not set yet
-                if (!startTime && roomState.status === 'racing') {
-                  if (!roomState.startTime) {
-                    setStartTime(Date.now());
+                // If a new character was added
+                if (newInput.length > userInput.length) {
+                  const newChar = newInput.charAt(newInput.length - 1);
+                  
+                  // Play key sound based on the key pressed
+                  if (newChar === " ") {
+                    keyboardSoundService.playSound("space");
+                  } else {
+                    keyboardSoundService.playSound("keypress");
                   }
-                }
 
-                const elapsed = Date.now() - (startTime || Date.now());
-                const currentWpm = calculateWpm(newCharStats.correct, elapsed);
-                setWpm(currentWpm);
-                setWpmHistory((prev) => [...prev, { wpm: currentWpm, time: elapsed }]);
+                  const currentIndex = newInput.length - 1;
+                  let currentCorrect = charStats.correct;
+                  let currentIncorrect = charStats.incorrect;
+                  let currentExtra = charStats.extra;
 
-                // Update progress
-                const progress = (newInput.length / text.length) * 100;
-                socket.emit("updateProgress", {
-                  wpm: currentWpm,
-                  accuracy: currentAccuracy,
-                  progress: progress,
-                });
+                  if (currentIndex >= text.length) {
+                    currentExtra++;
+                  } else if (newInput[currentIndex] === text[currentIndex]) {
+                    currentCorrect++;
+                  } else {
+                    currentIncorrect++;
+                    // Play error sound
+                    keyboardSoundService.playSound("error");
+                  }
 
-                // Update local player's progress
-                setRoomState(prev => {
-                  if (!prev || !localUserId) return prev;
-                  return {
-                    ...prev,
-                    players: {
-                      ...prev.players,
-                      [localUserId]: {
-                        ...prev.players[localUserId],
-                        progress: progress,
-                        wpm: currentWpm
-                      }
+                  const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
+                  setCharStats(newCharStats);
+
+                  const totalChars = newCharStats.correct + newCharStats.incorrect + newCharStats.extra;
+                  const currentAccuracy = Math.round((newCharStats.correct / totalChars) * 100) || 100;
+                  setAccuracy(currentAccuracy);
+
+                  // Set start time if not set yet
+                  if (!startTime && roomState.status === 'racing') {
+                    if (!roomState.startTime) {
+                      setStartTime(Date.now());
                     }
-                  };
-                });
+                  }
 
-                if (newInput.length === text.length) {
-                  setIsFinished(true);
-                  socket.emit("playerFinished", {
-                    finalWpm: currentWpm,
-                    finalAccuracy: currentAccuracy
+                  const elapsed = Date.now() - (startTime || Date.now());
+                  const currentWpm = calculateWpm(newCharStats.correct, elapsed);
+                  setWpm(currentWpm);
+                  setWpmHistory((prev) => [...prev, { wpm: currentWpm, time: elapsed }]);
+
+                  // Update progress
+                  const progress = (newInput.length / text.length) * 100;
+                  socket.emit("updateProgress", {
+                    wpm: currentWpm,
+                    accuracy: currentAccuracy,
+                    progress: progress,
+                  });
+
+                  // Update local player's progress
+                  setRoomState(prev => {
+                    if (!prev || !localUserId) return prev;
+                    return {
+                      ...prev,
+                      players: {
+                        ...prev.players,
+                        [localUserId]: {
+                          ...prev.players[localUserId],
+                          progress: progress,
+                          wpm: currentWpm
+                        }
+                      }
+                    };
+                  });
+
+                  if (newInput.length === text.length) {
+                    setIsFinished(true);
+                    socket.emit("playerFinished", {
+                      finalWpm: currentWpm,
+                      finalAccuracy: currentAccuracy
+                    });
+                  }
+                } 
+                // If a character was deleted (backspace)
+                else if (newInput.length < userInput.length) {
+                  // Play backspace sound
+                  keyboardSoundService.playSound("backspace");
+
+                  const deletedIndex = userInput.length - 1;
+                  let currentCorrect = charStats.correct;
+                  let currentIncorrect = charStats.incorrect;
+                  let currentExtra = charStats.extra;
+
+                  if (deletedIndex >= text.length) {
+                    currentExtra = Math.max(0, currentExtra - 1);
+                  } else if (userInput[deletedIndex] === text[deletedIndex]) {
+                    currentCorrect = Math.max(0, currentCorrect - 1);
+                  } else {
+                    currentIncorrect = Math.max(0, currentIncorrect - 1);
+                  }
+
+                  const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
+                  setCharStats(newCharStats);
+
+                  const progress = (newInput.length / text.length) * 100;
+                  socket.emit("updateProgress", {
+                    wpm,
+                    accuracy,
+                    progress: Math.max(0, progress),
+                  });
+
+                  // Update local player's progress
+                  setRoomState(prevState => {
+                    if (!prevState || !localUserId) return prevState;
+                    return {
+                      ...prevState,
+                      players: {
+                        ...prevState.players,
+                        [localUserId]: {
+                          ...prevState.players[localUserId],
+                          progress: Math.max(0, progress),
+                          wpm
+                        }
+                      }
+                    };
                   });
                 }
-              } 
-              // If a character was deleted (backspace)
-              else if (newInput.length < userInput.length) {
-                // Play backspace sound
-                keyboardSoundService.playSound("backspace");
-
-                const deletedIndex = userInput.length - 1;
-                let currentCorrect = charStats.correct;
-                let currentIncorrect = charStats.incorrect;
-                let currentExtra = charStats.extra;
-
-                if (deletedIndex >= text.length) {
-                  currentExtra = Math.max(0, currentExtra - 1);
-                } else if (userInput[deletedIndex] === text[deletedIndex]) {
-                  currentCorrect = Math.max(0, currentCorrect - 1);
-                } else {
-                  currentIncorrect = Math.max(0, currentIncorrect - 1);
-                }
-
-                const newCharStats = { correct: currentCorrect, incorrect: currentIncorrect, extra: currentExtra, missed: 0 };
-                setCharStats(newCharStats);
-
-                const progress = (newInput.length / text.length) * 100;
-                socket.emit("updateProgress", {
-                  wpm,
-                  accuracy,
-                  progress: Math.max(0, progress),
-                });
-
-                // Update local player's progress
-                setRoomState(prevState => {
-                  if (!prevState || !localUserId) return prevState;
-                  return {
-                    ...prevState,
-                    players: {
-                      ...prevState.players,
-                      [localUserId]: {
-                        ...prevState.players[localUserId],
-                        progress: Math.max(0, progress),
-                        wpm
-                      }
-                    }
-                  };
-                });
-              }
-              
-              // Finally, update the user input
-              setUserInput(newInput);
-            }}
-          />
+                
+                // Finally, update the user input
+                setUserInput(newInput);
+              }}
+            />
+          </div>
         )}
       </div>
 
