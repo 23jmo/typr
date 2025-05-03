@@ -16,7 +16,7 @@ export interface MatchmakingPlayerData {
 }
 
 // --- Core Matchmaking Logic ---
-export const ELO_RANGE = 100; // Example: Match players within 100 ELO points
+export const ELO_RANGE = 500; // Match players within 500 ELO points
 export const MAX_WAIT_TIME_SECONDS = 60; // Max time a player waits before widening search (optional)
 
 // References to external dependencies to avoid circular references
